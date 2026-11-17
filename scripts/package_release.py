@@ -32,7 +32,7 @@ def package(library, output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--library", type=Path, default=ROOT / "build/agy-coding-filter.so")
+    parser.add_argument("--library", type=Path, default=ROOT / "build/antigravity-prompt-bridge.so")
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
     args = parser.parse_args()
     package(args.library, args.output)

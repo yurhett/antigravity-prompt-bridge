@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY = "https://github.com/yurhett/cpa-plugin-antigravity-prompt-filter"
+REPOSITORY = "https://github.com/yurhett/antigravity-prompt-bridge"
 
 
 def metadata():
@@ -14,7 +14,7 @@ def metadata():
     fields = {name: re.search(r'\b' + name + r'\s*=\s*"([^"]+)"', source).group(1)
               for name in ("pluginName", "pluginVersion", "pluginRepository")}
     plugin = json.loads((ROOT / "registry.json").read_text())["plugins"][0]
-    assert fields["pluginName"] == plugin["id"] == "agy-coding-filter"
+    assert fields["pluginName"] == plugin["id"] == "antigravity-prompt-bridge"
     assert fields["pluginVersion"] == plugin["version"]
     assert fields["pluginRepository"] == plugin["repository"] == REPOSITORY
     assert (ROOT / "go.mod").read_text().splitlines()[0] == "module " + REPOSITORY.removeprefix("https://")

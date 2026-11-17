@@ -74,9 +74,9 @@ import (
 const abiVersion = 1
 
 const (
-	pluginName       = "agy-coding-filter"
-	pluginVersion    = "0.3.0"
-	pluginRepository = "https://github.com/yurhett/cpa-plugin-antigravity-prompt-filter"
+	pluginName       = "antigravity-prompt-bridge"
+	pluginVersion    = "0.3.1"
+	pluginRepository = "https://github.com/yurhett/antigravity-prompt-bridge"
 )
 
 func main() {}
@@ -206,7 +206,7 @@ func handleRequestInterceptAfter(request []byte) []byte {
 	}
 	raw, err := hostCall("host.auth.get_runtime", map[string]any{"auth_index": index})
 	if err != nil {
-		_, _ = hostCall("host.log", map[string]any{"level": "warn", "message": "agy-coding-filter: provider lookup failed; request unchanged", "fields": map[string]any{"request_id": req.RequestID}})
+		_, _ = hostCall("host.log", map[string]any{"level": "warn", "message": "antigravity-prompt-bridge: provider lookup failed; request unchanged", "fields": map[string]any{"request_id": req.RequestID}})
 		return mustEnvelope(pluginapi.RequestInterceptResponse{})
 	}
 	var runtime struct {
@@ -226,7 +226,7 @@ func handleRequestInterceptAfter(request []byte) []byte {
 		return mustEnvelope(pluginapi.RequestInterceptResponse{})
 	}
 	if cfg.Audit {
-		_, _ = hostCall("host.log", map[string]any{"level": "info", "message": "agy-coding-filter: processed system/developer prompt", "fields": map[string]any{"request_id": req.RequestID, "before_sha256": fmt.Sprintf("%x", sha256.Sum256(req.Body)), "after_sha256": fmt.Sprintf("%x", sha256.Sum256(body)), "native_bridge_enabled": cfg.AntigravityBridgeSystemPrompt && strings.EqualFold(strings.TrimSpace(runtime.Auth.Provider), "antigravity")}})
+		_, _ = hostCall("host.log", map[string]any{"level": "info", "message": "antigravity-prompt-bridge: processed system/developer prompt", "fields": map[string]any{"request_id": req.RequestID, "before_sha256": fmt.Sprintf("%x", sha256.Sum256(req.Body)), "after_sha256": fmt.Sprintf("%x", sha256.Sum256(body)), "native_bridge_enabled": cfg.AntigravityBridgeSystemPrompt && strings.EqualFold(strings.TrimSpace(runtime.Auth.Provider), "antigravity")}})
 	}
 	return mustEnvelope(pluginapi.RequestInterceptResponse{Body: body})
 }

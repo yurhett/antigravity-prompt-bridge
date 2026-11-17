@@ -1,7 +1,7 @@
 plugins:
   enabled: true
   configs:
-    agy-coding-filter:
+    antigravity-prompt-bridge:
       enabled: true
       priority: 1
       mode: rewrite

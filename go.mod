@@ -1,4 +1,4 @@
-module github.com/yurhett/cpa-plugin-antigravity-prompt-filter
+module github.com/yurhett/antigravity-prompt-bridge
 
 go 1.26.0
 

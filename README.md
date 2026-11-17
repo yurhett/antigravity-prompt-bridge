@@ -1,13 +1,13 @@
-# Antigravity Prompt Filter
+# antigravity-prompt-bridge
 
-[![CI and Release](https://github.com/yurhett/cpa-plugin-antigravity-prompt-filter/actions/workflows/ci.yml/badge.svg)](https://github.com/yurhett/cpa-plugin-antigravity-prompt-filter/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/yurhett/cpa-plugin-antigravity-prompt-filter)](https://github.com/yurhett/cpa-plugin-antigravity-prompt-filter/releases/latest)
+[![CI and Release](https://github.com/yurhett/antigravity-prompt-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/yurhett/antigravity-prompt-bridge/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/yurhett/antigravity-prompt-bridge)](https://github.com/yurhett/antigravity-prompt-bridge/releases/latest)
 
 [English](README.en.md) · [配置示例](examples/config.yaml) · [来源与许可](NOTICE.md)
 
-CLIProxyAPI（CPA）原生 ABI v1 插件，为 `agy` 和原生 `antigravity` 提供提示词处理。当前版本 **v0.3.0**，发布 Linux amd64 动态库。
+CLIProxyAPI（CPA）原生 ABI v1 插件，为 `agy` 和原生 `antigravity` 提供提示词处理。当前版本 **v0.3.1**，发布 Linux amd64 动态库。
 
-运行时插件 ID 保持为 **`agy-coding-filter`**，与 GitHub 仓库名称不同，已有配置无需改名。
+仓库名、运行时插件 ID、商店名称、配置键和发布包前缀统一为 **`antigravity-prompt-bridge`**。
 
 ## 功能
 
@@ -44,30 +44,36 @@ CLIProxyAPI（CPA）原生 ABI v1 插件，为 `agy` 和原生 `antigravity` 提
 在 CPA 的插件商店中添加自定义源，或将以下地址追加到主配置的 `plugins.store-sources`：
 
 ```text
-https://raw.githubusercontent.com/yurhett/cpa-plugin-antigravity-prompt-filter/main/registry.json
+https://raw.githubusercontent.com/yurhett/antigravity-prompt-bridge/main/registry.json
 ```
 
 ```yaml
 plugins:
   enabled: true
   store-sources:
-    - https://raw.githubusercontent.com/yurhett/cpa-plugin-antigravity-prompt-filter/main/registry.json
+    - https://raw.githubusercontent.com/yurhett/antigravity-prompt-bridge/main/registry.json
 ```
 
-刷新商店并安装 **Antigravity Prompt Filter**（ID：`agy-coding-filter`）。请使用本项目的自定义源，确保仓库地址和插件 ID 对应正确。
+刷新商店并安装 **antigravity-prompt-bridge**（ID：`antigravity-prompt-bridge`）。请使用本项目的自定义源，确保仓库地址和插件 ID 对应正确。
+
+### 从旧名称迁移
+
+v0.3.1 起使用统一名称 `antigravity-prompt-bridge`。从本项目 v0.3.0 升级时，将 `plugins.configs.agy-coding-filter` 下的原配置迁移到 `plugins.configs.antigravity-prompt-bridge`，保留字段和值，再移除旧配置键和插件发现目录中的旧动态库。刷新自定义源后安装新插件，确认只有一个版本生效，避免两个插件重复处理。同功能的旧 `antigravity-coding-filter` 也应停用。
+
+旧 v0.3.0 标签与 Release 保留供回退，当前发布使用新名称。更名不改变提示词处理算法和默认开关。
 
 ### 手动安装
 
-1. 从 [Releases](https://github.com/yurhett/cpa-plugin-antigravity-prompt-filter/releases) 下载 `agy-coding-filter_0.3.0_linux_amd64.zip` 和 `checksums.txt`。
+1. 从 [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases) 下载 `antigravity-prompt-bridge_0.3.1_linux_amd64.zip` 和 `checksums.txt`。
 2. 在下载目录验证并解压：
 
    ```sh
    sha256sum -c checksums.txt
-   unzip agy-coding-filter_0.3.0_linux_amd64.zip
+   unzip antigravity-prompt-bridge_0.3.1_linux_amd64.zip
    ```
 
-3. 将解压出的 `agy-coding-filter.so` 安装到 CPA 插件发现目录，建议命名为 `agy-coding-filter-v0.3.0.so`。旧版本备份放到发现目录以外。
-4. 保存 CPA 插件配置以触发热加载，并确认已加载版本为 `0.3.0`。
+3. 将解压出的 `antigravity-prompt-bridge.so` 安装到 CPA 插件发现目录，建议命名为 `antigravity-prompt-bridge-v0.3.1.so`。旧版本备份放到发现目录以外。
+4. 保存 CPA 插件配置以触发热加载，并确认已加载版本为 `0.3.1`。
 
 要求 Linux x86-64、GNU libc **2.34 或更新版本**，以及支持原生 ABI v1、请求拦截器和 `host.auth.get_runtime` 的 CPA。Alpine/musl 不适用本发布包。当前依赖 CPA SDK `v7.3.2`。
 
@@ -79,7 +85,7 @@ plugins:
 plugins:
   enabled: true
   configs:
-    agy-coding-filter:
+    antigravity-prompt-bridge:
       enabled: true
       priority: 1
       mode: rewrite
@@ -118,11 +124,11 @@ go vet ./...
 sh scripts/build.sh
 ```
 
-构建结果为 `build/agy-coding-filter.so`，目标为 Linux amd64、`GOAMD64=v1`、GNU libc 2.34。在 Linux 上执行编译库验证和打包：
+构建结果为 `build/antigravity-prompt-bridge.so`，目标为 Linux amd64、`GOAMD64=v1`、GNU libc 2.34。在 Linux 上执行编译库验证和打包：
 
 ```sh
-python3 scripts/abi_smoke.py build/agy-coding-filter.so
-python3 scripts/native_bridge_abi.py build/agy-coding-filter.so --output build/abi-report.json
+python3 scripts/abi_smoke.py build/antigravity-prompt-bridge.so
+python3 scripts/native_bridge_abi.py build/antigravity-prompt-bridge.so --output build/abi-report.json
 python3 scripts/package_release.py
 python3 scripts/verify_release.py
 ```
@@ -133,9 +139,9 @@ ABI 回归使用仓库内 32 份测试样本，覆盖 2 个提供商、4 个入�
 
 ```sh
 mkdir -p build
-go build -buildmode=c-shared -o build/agy-coding-filter.dylib .
-python3 scripts/abi_smoke.py build/agy-coding-filter.dylib
-python3 scripts/native_bridge_abi.py build/agy-coding-filter.dylib
+go build -buildmode=c-shared -o build/antigravity-prompt-bridge.dylib .
+python3 scripts/abi_smoke.py build/antigravity-prompt-bridge.dylib
+python3 scripts/native_bridge_abi.py build/antigravity-prompt-bridge.dylib
 ```
 
 推送 `main` 或创建 PR 会运行 CI。发布时先同步源码和 `registry.json` 版本，再推送相应的 `vX.Y.Z` 标签；版本检查、Go 测试、ABI 检查和安装包校验全部通过后，工作流发布压缩包与校验文件。
@@ -144,7 +150,7 @@ python3 scripts/native_bridge_abi.py build/agy-coding-filter.dylib
 
 启发式以英文声明为主，辅以有限中文支持，无法覆盖所有未来模板。超过 256 KiB 的提示词字段不做启发式身份改写；单句上限 2,048 字节，每字段最多改写 128 次。
 
-插件不保证上游额度或可用性。v0.3.0 曾在原生 Antigravity + OpenCode 的 Gemini 协议中完成 Flash Lite/Flash High 读文件工具调用；单次成功不代表所有账户和模型长期可用。
+插件不保证上游额度或可用性。更名前的 v0.3.0 曾在原生 Antigravity + OpenCode 的 Gemini 协议中完成 Flash Lite/Flash High 读文件工具调用；单次成功不代表所有账户和模型长期可用。
 
 回退位置处理可关闭搬移开关。回退二进制时，移出新版本文件，恢复备份，再保存配置触发热加载；不要将多个同 ID 的旧二进制长期留在发现目录。
 

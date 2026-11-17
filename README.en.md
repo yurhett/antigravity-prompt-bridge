@@ -1,13 +1,13 @@
-# agy-coding-filter v0.3.0
+# antigravity-prompt-bridge v0.3.1
 
 Independent CPA native ABI v1 plugin for Linux amd64. Filters caller system/developer instructions for the selected `agy` or `antigravity` credential. Provider selection uses `selected_auth_index` and read-only `host.auth.get_runtime`; model prefixes and client protocol do not determine scope. Unknown credentials pass through.
 
-Both provider switches default to true and can be disabled independently. `heuristic_identity` defaults to false for compatibility; the deployed configuration enables it explicitly:
+Both provider switches default to true and can be disabled independently. `heuristic_identity` defaults to false for compatibility; the recommended configuration enables it explicitly:
 
 ```yaml
 plugins:
   configs:
-    agy-coding-filter:
+    antigravity-prompt-bridge:
       enabled: true
       priority: 1
       mode: rewrite
@@ -16,11 +16,11 @@ plugins:
       antigravity_bridge_system_prompt: true
       heuristic_identity: true
       use_default_keywords: true
-      custom_mappings: {} # deployed empty: heuristic-only
+      custom_mappings: {} # heuristic-only
       audit: false
 ```
 
-The deployed configuration has no exact custom mappings and the legacy antigravity-coding-filter is disabled, so only heuristics transform prompts. The optional custom-mapping feature remains for compatibility but is unused. Historical source identities in `testdata/verified-identities.json` are test fixtures, not active mappings; synthetic test sentences are also not source mappings. The algorithm then conservatively recognizes first/second-person agent identity and harness declarations using sentence structure, product names, and AI/agent/creator/runtime features. It normalizes recognized identities to the verified native sentence:
+The recommended configuration has no exact custom mappings. Disable the legacy antigravity-coding-filter to avoid processing requests twice. The optional custom-mapping feature remains for compatibility but is unused. Historical source identities in `testdata/verified-identities.json` are test fixtures, not active mappings; synthetic test sentences are also not source mappings. The algorithm then conservatively recognizes first/second-person agent identity and harness declarations using sentence structure, product names, and AI/agent/creator/runtime features. It normalizes recognized identities to the verified native sentence:
 
 > You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.
 
@@ -40,10 +40,20 @@ No network or model calls are used. Heuristic processing skips fields larger tha
 
 ## Build and verify
 
-Requires Go 1.26+ and Zig. Run `sh scripts/build.sh`; this performs race tests and builds a C shared library for Linux amd64, GNU libc 2.34+. Run `go vet ./...` for static checks. Unit tests cover protocol boundaries, verified identities, independent provider switches, bridge placement, tool/history preservation, constraints, quoting and Unicode. Fuzz tests cover idempotence and quoted unknown identities. `scripts/abi_smoke.py` validates the compiled Linux library with a mock host; it makes no upstream request. `scripts/native_bridge_abi.py` accepts the compiled library and optional corpus/output paths to test both bridge states across both providers and four protocols.
+Build tools are pinned to Go 1.27.3 and Zig 0.17.1. Run `go test -race -count=1 ./...` and `go vet ./...`, then `sh scripts/build.sh` to build a C shared library for Linux amd64, GOAMD64=v1, GNU libc 2.34+. ABI checks use Python 3.12+ standard library. Unit tests cover protocol boundaries, verified identities, independent provider switches, bridge placement, tool/history preservation, constraints, quoting and Unicode. Fuzz tests cover idempotence and quoted unknown identities. `scripts/abi_smoke.py` validates the compiled Linux library with a mock host; it makes no upstream request. `scripts/native_bridge_abi.py` accepts the compiled library and optional corpus/output paths to test both bridge states across both providers and four protocols.
 
 ## Install and roll back
 
-Back up the old binary outside CPA's plugin discovery directory. Install as `agy-coding-filter-v0.3.0.so` in the configured plugins directory and save plugin configuration in CPAMC to trigger hot reload. A changed versioned file path is required for replacement. Confirm runtime version and boolean settings above. To bypass only one provider, turn off its switch. To roll back placement only, disable `antigravity_bridge_system_prompt`; to roll back the binary, remove the new versioned file and restore the backed-up binary, then reload configuration.
+Repository, runtime plugin ID, store name, configuration key and asset prefix all use `antigravity-prompt-bridge`. Add this CPA custom store source:
 
-This is a local adaptation, not an upstream release. Source attribution is preserved for jellyfish-p/cpa-plugin-antigravity-coding-filter v0.3.1 (MIT). The stock CLIProxy Antigravity plugin remains independent.
+```text
+https://raw.githubusercontent.com/yurhett/antigravity-prompt-bridge/main/registry.json
+```
+
+Download `antigravity-prompt-bridge_0.3.1_linux_amd64.zip` and `checksums.txt` from [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases/latest), verify the SHA256, and extract the root-level `antigravity-prompt-bridge.so`.
+
+When upgrading from this project's v0.3.0, move the configuration from `plugins.configs.agy-coding-filter` to `plugins.configs.antigravity-prompt-bridge`, preserving all settings. Remove the old configuration key and binary from plugin discovery before enabling the new plugin. The v0.3.0 tag and Release remain available for rollback. Prompt processing and defaults are unchanged by the rename.
+
+Back up the old binary outside CPA's plugin discovery directory. Install as `antigravity-prompt-bridge-v0.3.1.so` in the configured plugins directory and save plugin configuration in CPAMC to trigger hot reload. A changed versioned file path is required for replacement. Confirm runtime version and boolean settings above. To bypass only one provider, turn off its switch. To roll back placement only, disable `antigravity_bridge_system_prompt`; to roll back the binary, remove the new versioned file and restore the backed-up binary, then reload configuration.
+
+This is an independently maintained adaptation. Source attribution is preserved for jellyfish-p/cpa-plugin-antigravity-coding-filter v0.3.1 (MIT). The stock CLIProxy Antigravity plugin remains independent.

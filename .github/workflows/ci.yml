@@ -41,8 +41,8 @@ jobs:
         run: sh scripts/build.sh
       - name: Verify compiled ABI and both bridge states
         run: |
-          python3 scripts/abi_smoke.py build/agy-coding-filter.so
-          python3 scripts/native_bridge_abi.py build/agy-coding-filter.so --output build/abi-report.json
+          python3 scripts/abi_smoke.py build/antigravity-prompt-bridge.so
+          python3 scripts/native_bridge_abi.py build/antigravity-prompt-bridge.so --output build/abi-report.json
       - name: Package and verify CPA installation assets
         run: |
           python3 scripts/package_release.py

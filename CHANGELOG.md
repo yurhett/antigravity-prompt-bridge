@@ -1,3 +1,12 @@
+# v0.3.1
+
+- 将仓库、运行时插件 ID、商店名称、配置键及发布包前缀统一为 `antigravity-prompt-bridge`。
+- 更新 Go 模块路径、安装源、构建脚本、ABI 元数据检查及中英文文档。
+- 提示词处理算法、提供商开关和原生搬移默认值保持不变。
+- 从 v0.3.0 升级需将 `plugins.configs.agy-coding-filter` 迁移到 `plugins.configs.antigravity-prompt-bridge`，并移出旧二进制，避免重复处理；详见 README。
+
+安装资源：`antigravity-prompt-bridge_0.3.1_linux_amd64.zip` 与 `checksums.txt`。
+
 # v0.3.0
 
 - 支持 `agy` 与原生 `antigravity` 独立启停，保留运行时 ID `agy-coding-filter`。

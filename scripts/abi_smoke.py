@@ -26,7 +26,7 @@ def main():
             extra = "" if agy is None else f"enable_agy: {str(agy).lower()}\nenable_antigravity: {str(native).lower()}\n"
             registration = plugin.configure(extra + "antigravity_bridge_system_prompt: false\n")
             assert registration["metadata"]["Version"] == version
-            assert registration["metadata"]["GitHubRepository"] == "https://github.com/yurhett/cpa-plugin-antigravity-prompt-filter"
+            assert registration["metadata"]["GitHubRepository"] == "https://github.com/yurhett/antigravity-prompt-bridge"
             for provider in ["agy", "antigravity", "openai"]:
                 plugin.provider = provider
                 wanted = provider == "agy" and agy is not False or provider == "antigravity" and native is not False
