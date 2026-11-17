@@ -1,0 +1,12 @@
+/build/
+/dist/
+*.so
+*.dylib
+*.dll
+*.h
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+.env.*
+coverage.out

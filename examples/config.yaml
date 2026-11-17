@@ -1,0 +1,14 @@
+plugins:
+  enabled: true
+  configs:
+    agy-coding-filter:
+      enabled: true
+      priority: 1
+      mode: rewrite
+      enable_agy: true
+      enable_antigravity: true
+      antigravity_bridge_system_prompt: true
+      heuristic_identity: true
+      use_default_keywords: true
+      custom_mappings: {}
+      audit: false

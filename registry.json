@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "id": "agy-coding-filter",
+      "name": "Antigravity Prompt Filter",
+      "description": "启发式身份改写与原生 Antigravity 提示词桥接，支持 agy / antigravity 独立开关。",
+      "author": "yurhett",
+      "version": "0.3.0",
+      "repository": "https://github.com/yurhett/cpa-plugin-antigravity-prompt-filter",
+      "homepage": "https://github.com/yurhett/cpa-plugin-antigravity-prompt-filter",
+      "license": "MIT",
+      "tags": [
+        "request-interceptor",
+        "antigravity",
+        "agy",
+        "prompt-filter"
+      ]
+    }
+  ]
+}

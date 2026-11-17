@@ -1,0 +1,78 @@
+name: CI and Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Test, build and verify Linux amd64
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.3"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.17.1"
+      - name: Check metadata and version
+        shell: bash
+        run: |
+          python3 scripts/check_version.py
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            python3 scripts/check_version.py "$GITHUB_REF_NAME"
+          fi
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
+      - name: Race tests
+        run: go test -race -count=1 ./...
+      - name: Static analysis
+        run: go vet ./...
+      - name: Build Linux amd64, glibc 2.34
+        run: sh scripts/build.sh
+      - name: Verify compiled ABI and both bridge states
+        run: |
+          python3 scripts/abi_smoke.py build/agy-coding-filter.so
+          python3 scripts/native_bridge_abi.py build/agy-coding-filter.so --output build/abi-report.json
+      - name: Package and verify CPA installation assets
+        run: |
+          python3 scripts/package_release.py
+          python3 scripts/verify_release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: CHANGELOG.md
+          files: |
+            dist/*.zip
+            dist/checksums.txt
+          fail_on_unmatched_files: true
+          make_latest: true

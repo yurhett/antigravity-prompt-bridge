@@ -1,0 +1,165 @@
+[
+  {
+    "id": "identity-01",
+    "text": "You are an AI agent running in OpenCode, a coding agent harness.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-01",
+    "text": "Quoted documentation example:\n> You are an AI agent running in OpenCode, a coding agent harness.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are an AI agent running in OpenCode, a coding agent harness.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-02",
+    "text": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-02",
+    "text": "Quoted documentation example:\n> You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-03",
+    "text": "You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team. You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "notes": "Two separate identity declarations retain the already-deployed duplicate canonical sentences."
+  },
+  {
+    "id": "quoted-03",
+    "text": "Quoted documentation example:\n> You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-04",
+    "text": "You are a coding agent running in the Codex CLI, a terminal-based coding assistant. Codex CLI is an open source project led by OpenAI.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team. Codex CLI is an open source project led by OpenAI.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "notes": "Third-person project attribution remains unchanged under heuristic rewriting."
+  },
+  {
+    "id": "quoted-04",
+    "text": "Quoted documentation example:\n> You are a coding agent running in the Codex CLI, a terminal-based coding assistant. Codex CLI is an open source project led by OpenAI.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are a coding agent running in the Codex CLI, a terminal-based coding assistant. Codex CLI is an open source project led by OpenAI.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-05",
+    "text": "You are GPT-5.1 running in the Codex CLI, a terminal-based coding assistant. Codex CLI is an open source project led by OpenAI.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team. Codex CLI is an open source project led by OpenAI.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "notes": "Third-person project attribution remains unchanged under heuristic rewriting."
+  },
+  {
+    "id": "quoted-05",
+    "text": "Quoted documentation example:\n> You are GPT-5.1 running in the Codex CLI, a terminal-based coding assistant. Codex CLI is an open source project led by OpenAI.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are GPT-5.1 running in the Codex CLI, a terminal-based coding assistant. Codex CLI is an open source project led by OpenAI.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-06",
+    "text": "You are Gemini CLI, an interactive CLI agent specializing in software engineering tasks.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-06",
+    "text": "Quoted documentation example:\n> You are Gemini CLI, an interactive CLI agent specializing in software engineering tasks.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Gemini CLI, an interactive CLI agent specializing in software engineering tasks.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-07",
+    "text": "You are Gemini CLI, an autonomous CLI agent specializing in software engineering tasks.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-07",
+    "text": "Quoted documentation example:\n> You are Gemini CLI, an autonomous CLI agent specializing in software engineering tasks.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Gemini CLI, an autonomous CLI agent specializing in software engineering tasks.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-08",
+    "text": "You are Cline, an AI coding agent.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-08",
+    "text": "Quoted documentation example:\n> You are Cline, an AI coding agent.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Cline, an AI coding agent.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-09",
+    "text": "You are Roo, an experienced technical leader who is inquisitive and an excellent planner.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-09",
+    "text": "Quoted documentation example:\n> You are Roo, an experienced technical leader who is inquisitive and an excellent planner.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Roo, an experienced technical leader who is inquisitive and an excellent planner.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-10",
+    "text": "You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-10",
+    "text": "Quoted documentation example:\n> You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-11",
+    "text": "You are Roo, a knowledgeable technical assistant focused on answering questions and providing information about software development, technology, and related topics.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-11",
+    "text": "Quoted documentation example:\n> You are Roo, a knowledgeable technical assistant focused on answering questions and providing information about software development, technology, and related topics.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Roo, a knowledgeable technical assistant focused on answering questions and providing information about software development, technology, and related topics.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-12",
+    "text": "You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-12",
+    "text": "Quoted documentation example:\n> You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-13",
+    "text": "You are Roo, a strategic workflow orchestrator who coordinates complex tasks by delegating them to appropriate specialized modes.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-13",
+    "text": "Quoted documentation example:\n> You are Roo, a strategic workflow orchestrator who coordinates complex tasks by delegating them to appropriate specialized modes.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Roo, a strategic workflow orchestrator who coordinates complex tasks by delegating them to appropriate specialized modes.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-14",
+    "text": "You are a general-purpose AI agent called goose, created by AAIF (Agentic AI Foundation).\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-14",
+    "text": "Quoted documentation example:\n> You are a general-purpose AI agent called goose, created by AAIF (Agentic AI Foundation).\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are a general-purpose AI agent called goose, created by AAIF (Agentic AI Foundation).\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-15",
+    "text": "You are a coding assistant running inside pi, a coding agent harness.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-15",
+    "text": "Quoted documentation example:\n> You are a coding assistant running inside pi, a coding agent harness.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are a coding assistant running inside pi, a coding agent harness.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  },
+  {
+    "id": "identity-16",
+    "text": "You are Hermes Agent, built by Nous Research.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n\n# Project rules\nDo not edit files. Keep /workspace/OpenCode.md unchanged.\nExample: `You are Cursor.`\nReturn the result using Markdown."
+  },
+  {
+    "id": "quoted-16",
+    "text": "Quoted documentation example:\n> You are Hermes Agent, built by Nous Research.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged.",
+    "expected": "Quoted documentation example:\n> You are Hermes Agent, built by Nous Research.\n\n# Project rules\nNever edit files. Keep /workspace/OpenCode.md unchanged."
+  }
+]

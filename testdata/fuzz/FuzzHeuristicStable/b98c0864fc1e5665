@@ -1,0 +1,2 @@
+go test fuzz v1
+string("You are Cursor A!000000000000000000000000")
