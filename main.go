@@ -75,7 +75,7 @@ const abiVersion = 1
 
 const (
 	pluginName       = "antigravity-prompt-bridge"
-	pluginVersion    = "0.3.1"
+	pluginVersion    = "0.5.3"
 	pluginRepository = "https://github.com/yurhett/antigravity-prompt-bridge"
 )
 
@@ -124,7 +124,7 @@ func cliproxy_plugin_free(ptr unsafe.Pointer, _ C.size_t) {
 }
 
 //export cliproxy_plugin_shutdown
-func cliproxy_plugin_shutdown() {}
+func cliproxy_plugin_shutdown() { agentAliases.clear() }
 
 func writeCResponse(response *C.cliproxy_buffer, raw []byte) {
 	if response == nil || len(raw) == 0 {
@@ -149,6 +149,17 @@ func handlePluginCall(method string, request []byte) ([]byte, int) {
 		return handleRequestInterceptBefore(request), 0
 	case pluginabi.MethodRequestInterceptAfter:
 		return handleRequestInterceptAfter(request), 0
+	case pluginabi.MethodResponseInterceptAfter:
+		return handleAliasResponse(request), 0
+	case pluginabi.MethodResponseInterceptStreamChunk:
+		return handleAliasStream(request), 0
+	case pluginabi.MethodRequestComplete:
+		var req pluginapi.RequestCompletion
+		if err := json.Unmarshal(request, &req); err != nil {
+			return mustErrorEnvelope("invalid_request", err.Error()), 0
+		}
+		agentAliases.remove(req.RequestID)
+		return mustEnvelope(struct{}{}), 0
 	default:
 		return mustErrorEnvelope("unknown_method", fmt.Sprintf("unknown method %q", method)), 0
 	}
@@ -170,7 +181,7 @@ func registrationResponse() any {
 		SchemaVersion uint32             `json:"schema_version"`
 		Metadata      pluginapi.Metadata `json:"metadata"`
 		Capabilities  map[string]bool    `json:"capabilities"`
-	}{pluginabi.SchemaVersion, pluginapi.Metadata{Name: pluginName, Version: pluginVersion, Author: "yurhett", GitHubRepository: pluginRepository, ConfigFields: configFields()}, map[string]bool{"request_interceptor": true}}
+	}{pluginabi.SchemaVersion, pluginapi.Metadata{Name: pluginName, Version: pluginVersion, Author: "yurhett", GitHubRepository: pluginRepository, ConfigFields: configFields()}, map[string]bool{"request_interceptor": true, "response_interceptor": true, "response_stream_interceptor": true, "request_lifecycle_plugin": true}}
 }
 func configFields() []pluginapi.ConfigField {
 	return []pluginapi.ConfigField{
@@ -178,10 +189,11 @@ func configFields() []pluginapi.ConfigField {
 		{Name: "enable_agy", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Apply this filter to selected agy credentials. Default true."},
 		{Name: "enable_antigravity", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Apply this filter to selected native antigravity credentials independently. Default true."},
 		{Name: "antigravity_bridge_system_prompt", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Native antigravity only: move rewritten system/developer prompts into a USER_REQUEST user message, keeping the native identity as system. Does not affect agy. Default true."},
-		{Name: "use_default_keywords", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Use the original keyword preset; with heuristics enabled, names are identity hints rather than broad substitutions."},
+		{Name: "agent_alias", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Identify the agent from its system/developer self-declaration. Apply prompt templates, whole-word brand cleanup and reversible tool aliases. Unidentified requests use the legacy rewrite settings. Default true."},
+		{Name: "use_default_keywords", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Use the legacy keyword preset or use its names as clues for heuristic identity normalization. Default true."},
 		{Name: "custom_mappings", Type: pluginapi.ConfigFieldTypeObject, Description: "Case-insensitive custom mappings; override built-in mappings."},
 		{Name: "heuristic_identity", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Conservatively normalize identity and harness declarations to the native Antigravity identity; preserve quoted/code/project content. Default false."},
-		{Name: "audit", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Log request ID and before/after body SHA256 only; no prompt contents."},
+		{Name: "audit", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Log request ID, body SHA256 hashes, identified agent families and rewrite counts. Prompt contents are excluded."},
 	}
 }
 
@@ -198,6 +210,8 @@ func handleRequestInterceptAfter(request []byte) []byte {
 	if err := json.Unmarshal(request, &req); err != nil {
 		return mustErrorEnvelope("invalid_request", fmt.Sprintf("decode request.intercept_after request: %v", err))
 	}
+	// A retry may select a different provider or no longer require aliases.
+	agentAliases.remove(req.RequestID)
 	// Resolve the actual selected credential, including unprefixed models and aliases.
 	// Never infer provider from the OpenAI wire format or caller-controlled model name.
 	index, _ := req.Metadata["selected_auth_index"].(string)
@@ -219,14 +233,60 @@ func handleRequestInterceptAfter(request []byte) []byte {
 	}
 	cfg := activeFilterConfig()
 	if !providerFilterEnabled(runtime.Auth.Provider, cfg) {
+		agentAliases.remove(req.RequestID)
 		return mustEnvelope(pluginapi.RequestInterceptResponse{})
 	}
-	body, rewritten := rewriteProviderRequestBody(req.Body, cfg, runtime.Auth.Provider)
+	var agent agentRequestRewrite
+	if cfg.AgentAlias {
+		agent, err = rewriteAgentRequest(req.Body, cfg)
+		state := agent.state
+		if err == nil && state != nil && req.Stream && !aliasStreamFormatSupported(req.SourceFormat) {
+			err = fmt.Errorf("unsupported agent alias stream format")
+		}
+		if err == nil && state != nil && strings.TrimSpace(req.RequestID) == "" {
+			err = fmt.Errorf("Agent aliasing requires a request ID for response restoration")
+		}
+		if err == nil && state != nil {
+			err = agentAliases.put(req.RequestID, state)
+		}
+		if err != nil {
+			code := "agent_alias_conflict"
+			if _, ok := err.(*agentAdapterError); ok {
+				code = "agent_alias_adapter_unsupported"
+			}
+			payload, _ := json.Marshal(map[string]any{"error": map[string]any{"type": "invalid_request_error", "code": code, "message": err.Error()}})
+			return mustEnvelope(pluginapi.RequestInterceptResponse{Terminate: true, StatusCode: 400, ResponseBody: payload})
+		}
+	}
+	body := agent.body
+	if len(agent.families) == 0 {
+		body, _ = rewriteRequestBodyWithConfig(req.Body, cfg)
+	}
+	rewritten := body != nil
+	if !rewritten {
+		body = req.Body
+	}
+	bridgeEnabled := cfg.AntigravityBridgeSystemPrompt && strings.EqualFold(strings.TrimSpace(runtime.Auth.Provider), "antigravity")
+	if bridgeEnabled {
+		if bridged, moved := bridgeNativeSystemPrompt(body); moved {
+			body, rewritten = bridged, true
+		}
+	}
+	if cfg.Audit && (rewritten || agent.stats.residualProtected > 0) {
+		fields := map[string]any{
+			"request_id": req.RequestID, "before_sha256": fmt.Sprintf("%x", sha256.Sum256(req.Body)), "after_sha256": fmt.Sprintf("%x", sha256.Sum256(body)),
+			"native_bridge_enabled": bridgeEnabled, "agent_alias_enabled": cfg.AgentAlias,
+		}
+		if len(agent.families) > 0 {
+			fields["agent_families"] = agent.families
+			fields["template_hits"] = agent.stats.templateHits
+			fields["residual_fixed"] = agent.stats.residualFixed
+			fields["residual_protected"] = agent.stats.residualProtected
+		}
+		_, _ = hostCall("host.log", map[string]any{"level": "info", "message": "antigravity-prompt-bridge: processed upstream request", "fields": fields})
+	}
 	if !rewritten {
 		return mustEnvelope(pluginapi.RequestInterceptResponse{})
-	}
-	if cfg.Audit {
-		_, _ = hostCall("host.log", map[string]any{"level": "info", "message": "antigravity-prompt-bridge: processed system/developer prompt", "fields": map[string]any{"request_id": req.RequestID, "before_sha256": fmt.Sprintf("%x", sha256.Sum256(req.Body)), "after_sha256": fmt.Sprintf("%x", sha256.Sum256(body)), "native_bridge_enabled": cfg.AntigravityBridgeSystemPrompt && strings.EqualFold(strings.TrimSpace(runtime.Auth.Provider), "antigravity")}})
 	}
 	return mustEnvelope(pluginapi.RequestInterceptResponse{Body: body})
 }
@@ -263,67 +323,7 @@ func mustRawMessage(value any) json.RawMessage {
 	return raw
 }
 
-var defaultRewriteMappings = []rewriteMapping{
-	// Major AI code editors, assistants, and terminal coding agents.
-	{Match: "Claude Agent", Replacement: "Antigravity"},
-	{Match: "Claude Code", Replacement: "Antigravity"},
-	{Match: "OpenAI Codex", Replacement: "Antigravity"},
-	{Match: "Codex CLI", Replacement: "Antigravity"},
-	{Match: "Codex", Replacement: "Antigravity"},
-	{Match: "OpenCode", Replacement: "Antigravity"},
-	{Match: "GitHub Copilot CLI", Replacement: "Antigravity"},
-	{Match: "GitHub Copilot", Replacement: "Antigravity"},
-	{Match: "Gemini Code Assist", Replacement: "Antigravity"},
-	{Match: "Gemini CLI", Replacement: "Antigravity"},
-	{Match: "Cursor", Replacement: "Antigravity"},
-	{Match: "Windsurf", Replacement: "Antigravity"},
-	{Match: "Codeium", Replacement: "Antigravity"},
-	{Match: "Cline", Replacement: "Antigravity"},
-	{Match: "Roo Code", Replacement: "Antigravity"},
-	{Match: "Kilo Code", Replacement: "Antigravity"},
-	{Match: "Aider", Replacement: "Antigravity"},
-	{Match: "Continue.dev", Replacement: "Antigravity"},
-	{Match: "Amazon Q Developer", Replacement: "Antigravity"},
-	{Match: "Amazon CodeWhisperer", Replacement: "Antigravity"},
-	{Match: "JetBrains AI Assistant", Replacement: "Antigravity"},
-	{Match: "JetBrains Junie", Replacement: "Antigravity"},
-	{Match: "Kiro", Replacement: "Antigravity"},
-	{Match: "Qoder CLI", Replacement: "Antigravity"},
-	{Match: "Qoder", Replacement: "Antigravity"},
-	{Match: "Qwen Code", Replacement: "Antigravity"},
-	{Match: "Trae", Replacement: "Antigravity"},
-	{Match: "Tabnine", Replacement: "Antigravity"},
-	{Match: "Sourcegraph Cody", Replacement: "Antigravity"},
-	{Match: "Augment Code", Replacement: "Antigravity"},
-	{Match: "Replit Agent", Replacement: "Antigravity"},
-	{Match: "Replit Ghostwriter", Replacement: "Antigravity"},
-	{Match: "Devin", Replacement: "Antigravity"},
-	{Match: "OpenHands", Replacement: "Antigravity"},
-	{Match: "SWE-agent", Replacement: "Antigravity"},
-	{Match: "Goose", Replacement: "Antigravity"},
-	{Match: "Zed AI", Replacement: "Antigravity"},
-	{Match: "Void Editor", Replacement: "Antigravity"},
-	{Match: "PearAI", Replacement: "Antigravity"},
-	{Match: "Refact.ai", Replacement: "Antigravity"},
-	{Match: "Tabby", Replacement: "Antigravity"},
-	{Match: "GitLab Duo", Replacement: "Antigravity"},
-	{Match: "Visual Studio IntelliCode", Replacement: "Antigravity"},
-	{Match: "CodeBuddy", Replacement: "Antigravity"},
-	{Match: "Blackbox AI", Replacement: "Antigravity"},
-	{Match: "Pieces for Developers", Replacement: "Antigravity"},
-	{Match: "Qodo", Replacement: "Antigravity"},
-	{Match: "CodiumAI", Replacement: "Antigravity"},
-	{Match: "Rovo Dev CLI", Replacement: "Antigravity"},
-	{Match: "Factory Droid", Replacement: "Antigravity"},
-
-	// General-purpose local agents that can generate and modify code.
-	{Match: "OpenClaw", Replacement: "Antigravity"},
-	{Match: "Clawdbot", Replacement: "Antigravity"},
-	{Match: "Moltbot", Replacement: "Antigravity"},
-	{Match: "Hermes Agent", Replacement: "Antigravity"},
-	{Match: "Hermes", Replacement: "Antigravity"},
-	{Match: "WorkBuddy", Replacement: "Antigravity"},
-}
+var defaultRewriteMappings = catalogRewriteMappings()
 
 type filterMode string
 
@@ -345,6 +345,7 @@ type filterConfig struct {
 	EnableAgy                     bool
 	EnableAntigravity             bool
 	AntigravityBridgeSystemPrompt bool
+	AgentAlias                    bool
 	Audit                         bool
 }
 
@@ -354,7 +355,7 @@ var (
 )
 
 func defaultFilterConfig() filterConfig {
-	return filterConfig{Mode: filterModeRewrite, UseDefaultKeywords: true, EnableAgy: true, EnableAntigravity: true, AntigravityBridgeSystemPrompt: true}
+	return filterConfig{Mode: filterModeRewrite, UseDefaultKeywords: true, EnableAgy: true, EnableAntigravity: true, AntigravityBridgeSystemPrompt: true, AgentAlias: true}
 }
 
 func applyFilterConfig(cfg filterConfig) {
@@ -368,6 +369,7 @@ func applyFilterConfig(cfg filterConfig) {
 		EnableAgy:                     cfg.EnableAgy,
 		EnableAntigravity:             cfg.EnableAntigravity,
 		AntigravityBridgeSystemPrompt: cfg.AntigravityBridgeSystemPrompt,
+		AgentAlias:                    cfg.AgentAlias,
 		UseDefaultKeywords:            cfg.UseDefaultKeywords,
 		CustomMappings:                append([]rewriteMapping(nil), normalizeMappings(cfg.CustomMappings)...),
 	}
@@ -384,6 +386,7 @@ func activeFilterConfig() filterConfig {
 		EnableAgy:                     currentFilterConfig.EnableAgy,
 		EnableAntigravity:             currentFilterConfig.EnableAntigravity,
 		AntigravityBridgeSystemPrompt: currentFilterConfig.AntigravityBridgeSystemPrompt,
+		AgentAlias:                    currentFilterConfig.AgentAlias,
 		UseDefaultKeywords:            currentFilterConfig.UseDefaultKeywords,
 		CustomMappings:                append([]rewriteMapping(nil), currentFilterConfig.CustomMappings...),
 	}
@@ -425,7 +428,7 @@ func parseFilterConfigYAML(raw []byte) (filterConfig, error) {
 		}
 		cfg.HeuristicIdentity = v
 	}
-	for key, destination := range map[string]*bool{"enable_agy": &cfg.EnableAgy, "enable_antigravity": &cfg.EnableAntigravity, "antigravity_bridge_system_prompt": &cfg.AntigravityBridgeSystemPrompt} {
+	for key, destination := range map[string]*bool{"enable_agy": &cfg.EnableAgy, "enable_antigravity": &cfg.EnableAntigravity, "antigravity_bridge_system_prompt": &cfg.AntigravityBridgeSystemPrompt, "agent_alias": &cfg.AgentAlias} {
 		if value, exists := values[key]; exists {
 			v, ok := value.(bool)
 			if !ok {
@@ -587,8 +590,8 @@ func rewriteRequestBody(body []byte) ([]byte, bool) {
 }
 
 func rewriteRequestBodyWithConfig(body []byte, cfg filterConfig) ([]byte, bool) {
-	var root any
-	if err := json.Unmarshal(body, &root); err != nil {
+	root, err := decodeAliasJSON(body)
+	if err != nil {
 		return nil, false
 	}
 	mappings := effectiveMappings(cfg)

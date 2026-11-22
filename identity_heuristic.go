@@ -37,16 +37,19 @@ var (
 	chineseBehaviorBoundary = regexp.MustCompile(`[，,]?你?(?:必须|不能|不得|不要|请|只能|始终|应该)`)
 	forbiddenIdentity       = regexp.MustCompile(`(?i)^(?:not\b|required\b|expected\b|allowed\b|forbidden\b|unable\b|in\b|to\b|responsible\b|working\s+on\b)`)
 	embeddedConstraint      = regexp.MustCompile(`(?i)\b(?:read[- ]only|restricted|limited|without|no\s+(?:permission|write|editing)|not\s+allowed)\b|只读|不得|禁止`)
-	inlineQuoteRanges       = regexp.MustCompile("\"(?:\\\\.|[^\"\\\\])*\"|`[^`\\n]*`|“[^”]*”|‘[^’]*’|(?:^|[ \\t(])'[^'\\n]+'")
+	inlineQuoteRanges       = regexp.MustCompile("\"(?:\\\\.|[^\"\\\\])*\"|“[^”]*”|‘[^’]*’|(?:^|[ \\t(])'[^'\\n]+'")
 	markdownLinkRanges      = regexp.MustCompile(`\[[^\]\n]*\]\([^\)\n]*\)`)
 	xmlProtectedStart       = regexp.MustCompile(`(?i)<(?:example|examples|quote|quoted|code|tool_result|tool_output|project_instructions|project_context|untrusted_text|document)\b[^>]*>`)
-	identityAliasPattern    = buildIdentityAliasPattern()
+	// Single-line identifier elements in harness listings (<id>opencode</id>,
+	// <name>customize-opencode</name>) are lookup keys, not prose.
+	xmlIdentifierValue   = regexp.MustCompile(`(?i)<(?:id|name|location|path|file)>[^<\n]{0,256}</(?:id|name|location|path|file)>`)
+	identityAliasPattern = buildIdentityAliasPattern()
 )
 
 func buildIdentityAliasPattern() *regexp.Regexp {
-	names := []string{"Antigravity", "Pi", "Roo", "Cascade"}
-	for _, m := range defaultRewriteMappings {
-		names = append(names, m.Match)
+	names := []string{"Antigravity"}
+	for _, brand := range agentBrands {
+		names = append(names, brand.Name)
 	}
 	sort.Slice(names, func(i, j int) bool { return len(names[i]) > len(names[j]) })
 	for i := range names {
@@ -63,12 +66,12 @@ func rewriteIdentityPrompt(value string, cfg filterConfig) (string, bool) {
 	if len(value) > maxHeuristicPromptBytes {
 		return value, false
 	}
-	next := applyIdentityMappings(value, normalizeMappings(cfg.CustomMappings))
+	next := applyIdentityMappings(value, normalizeMappings(cfg.CustomMappings), identityProtectedRanges)
 	next = normalizeIdentityDeclarations(next, cfg.UseDefaultKeywords)
 	return next, next != value
 }
 
-func applyIdentityMappings(value string, mappings []rewriteMapping) string {
+func applyIdentityMappings(value string, mappings []rewriteMapping, protection func(string) []textRange) string {
 	for _, m := range mappings {
 		// RE2 reports byte offsets in the original string even when Unicode case
 		// folding changes byte lengths. Lowercased-string offsets are unsafe here.
@@ -77,7 +80,7 @@ func applyIdentityMappings(value string, mappings []rewriteMapping) string {
 		if len(hits) == 0 {
 			continue
 		}
-		protected := identityProtectedRanges(value)
+		protected := protection(value)
 		var b strings.Builder
 		start := 0
 		for _, hit := range hits {
@@ -97,7 +100,12 @@ func applyIdentityMappings(value string, mappings []rewriteMapping) string {
 }
 
 func normalizeIdentityDeclarations(value string, useAliases bool) string {
-	protected := identityProtectedRanges(value)
+	return normalizeIdentityWhere(value, identityProtectedRanges(value), func(candidate string) bool {
+		return isIdentityDeclaration(candidate, useAliases)
+	})
+}
+
+func normalizeIdentityWhere(value string, protected []textRange, matches func(string) bool) string {
 	var b strings.Builder
 	start, copied, changes := 0, 0, 0
 	consume := func(end int) {
@@ -123,10 +131,14 @@ func normalizeIdentityDeclarations(value string, useAliases bool) string {
 				}
 			}
 			candidate := strings.TrimSpace(trimmed[:identityEnd])
-			if !strings.HasPrefix(candidate, nativeAntigravityIdentity) && isIdentityDeclaration(candidate, useAliases) {
+			if !strings.HasPrefix(candidate, nativeAntigravityIdentity) && matches(candidate) {
 				b.WriteString(value[copied:left])
 				b.WriteString(nativeAntigravityIdentity)
 				copied = left + len(candidate)
+				// CJK sentences have no space after "。"; keep the next word separate.
+				if next, _ := utf8.DecodeRuneInString(value[copied:]); copied < len(value) && !unicode.IsSpace(next) && !unicode.IsPunct(next) {
+					b.WriteByte(' ')
+				}
 				changes++
 			}
 		}
@@ -203,6 +215,15 @@ func isIdentityDeclaration(sentence string, useAliases bool) bool {
 	return named && (role || creator) || role && (creator || environment)
 }
 
+// introducesSelf accepts any unconstrained "You are ..." sentence. Callers must
+// separately prove that it names the identified Agent in a self-identity slot.
+func introducesSelf(sentence string) bool {
+	s := strings.TrimSpace(strings.TrimRight(sentence, ".!?;。！？；"))
+	intro := identityIntro.FindStringIndex(s)
+	return intro != nil && len(s) <= maxIdentitySentenceBytes && !embeddedConstraint.MatchString(s) &&
+		!forbiddenIdentity.MatchString(strings.TrimSpace(s[intro[1]:]))
+}
+
 func hasLeadingIdentityAlias(value string) bool {
 	return identityAliasPattern.MatchString(value)
 }
@@ -212,10 +233,49 @@ func isNameRune(r rune) bool {
 }
 
 func identityProtectedRanges(value string) []textRange {
-	ranges := protectedTextRanges(value)
-	for _, re := range []*regexp.Regexp{inlineQuoteRanges, markdownLinkRanges} {
+	return classifyPromptProtection(value).all()
+}
+
+type promptCodeRange struct {
+	textRange
+	inline bool
+}
+
+type promptProtection struct {
+	technical []textRange
+	literals  []textRange
+	blocks    []textRange
+	code      []promptCodeRange
+}
+
+func (p promptProtection) all() []textRange {
+	ranges := make([]textRange, 0, len(p.technical)+len(p.literals)+len(p.blocks)+len(p.code))
+	ranges = append(ranges, p.technical...)
+	ranges = append(ranges, p.literals...)
+	ranges = append(ranges, p.blocks...)
+	for _, code := range p.code {
+		ranges = append(ranges, code.textRange)
+	}
+	return ranges
+}
+
+func (p promptProtection) protectedBlock(start, end int) bool {
+	if overlapsProtected(start, end, p.blocks) {
+		return true
+	}
+	for _, code := range p.code {
+		if !code.inline && start < code.end && end > code.start {
+			return true
+		}
+	}
+	return false
+}
+
+func classifyPromptProtection(value string) promptProtection {
+	p := promptProtection{technical: protectedTextRanges(value)}
+	for _, re := range []*regexp.Regexp{inlineQuoteRanges, markdownLinkRanges, xmlIdentifierValue} {
 		for _, m := range re.FindAllStringIndex(value, -1) {
-			ranges = append(ranges, textRange{start: m[0], end: m[1]})
+			p.literals = append(p.literals, textRange{start: m[0], end: m[1]})
 		}
 	}
 	// XML tags are ASCII, so locate closing tags on the original byte string
@@ -227,18 +287,28 @@ func identityProtectedRanges(value string) []textRange {
 		if close := regexp.MustCompile(`(?i)</` + regexp.QuoteMeta(tag) + `\s*>`).FindStringIndex(value[m[1]:]); close != nil {
 			end = m[1] + close[1]
 		}
-		ranges = append(ranges, textRange{start: m[0], end: end})
+		p.blocks = append(p.blocks, textRange{start: m[0], end: end})
 	}
 	fenceStart, fenceChar, fenceWidth := -1, byte(0), 0
+	shellFence := false
+	// As in CommonMark, an indented code block cannot interrupt a paragraph:
+	// indented XML such as an <available_skills> listing stays prose.
+	afterBlank, indentedCode := true, false
 	for offset := 0; offset < len(value); {
 		end := len(value)
 		if n := strings.IndexByte(value[offset:], '\n'); n >= 0 {
 			end = offset + n + 1
 		}
 		line := strings.TrimSpace(value[offset:end])
-		if strings.HasPrefix(line, ">") || strings.HasPrefix(value[offset:end], "    ") || strings.HasPrefix(value[offset:end], "\t") {
-			ranges = append(ranges, textRange{start: offset, end: end})
+		indented := strings.HasPrefix(value[offset:end], "    ") || strings.HasPrefix(value[offset:end], "\t")
+		if fenceStart < 0 && line != "" {
+			indentedCode = indented && (indentedCode || afterBlank)
 		}
+		afterBlank = line == ""
+		if strings.HasPrefix(line, ">") || fenceStart < 0 && indentedCode && line != "" {
+			p.blocks = append(p.blocks, textRange{start: offset, end: end})
+		}
+		fenceLine := false
 		if len(line) >= 3 && (line[0] == '`' || line[0] == '~') {
 			width := 0
 			for width < len(line) && line[width] == line[0] {
@@ -246,17 +316,60 @@ func identityProtectedRanges(value string) []textRange {
 			}
 			if width >= 3 {
 				if fenceStart < 0 {
+					fenceLine = true
 					fenceStart, fenceChar, fenceWidth = offset, line[0], width
+					shellFence = isShellFence(line[width:])
 				} else if line[0] == fenceChar && width >= fenceWidth && strings.TrimSpace(line[width:]) == "" {
-					ranges = append(ranges, textRange{start: fenceStart, end: end})
+					fenceLine = true
+					span := textRange{start: fenceStart, end: end}
+					if shellFence {
+						p.blocks = append(p.blocks, span)
+					} else {
+						p.code = append(p.code, promptCodeRange{span, false})
+					}
 					fenceStart = -1
 				}
 			}
 		}
+		if !fenceLine && fenceStart < 0 && strings.ContainsRune(line, '`') {
+			p.code = appendInlineCode(p.code, value[offset:end], offset)
+		}
 		offset = end
 	}
 	if fenceStart >= 0 {
-		ranges = append(ranges, textRange{start: fenceStart, end: len(value)})
+		p.blocks = append(p.blocks, textRange{start: fenceStart, end: len(value)})
+	}
+	return p
+}
+
+func appendInlineCode(ranges []promptCodeRange, line string, offset int) []promptCodeRange {
+	start, width := -1, 0
+	for i := 0; i < len(line); {
+		at := strings.IndexByte(line[i:], '`')
+		if at < 0 {
+			break
+		}
+		at += i
+		i = at + 1
+		for i < len(line) && line[i] == '`' {
+			i++
+		}
+		if start < 0 {
+			start, width = at, i-at
+		} else if i-at == width {
+			ranges = append(ranges, promptCodeRange{textRange{offset + start, offset + i}, true})
+			start = -1
+		}
 	}
 	return ranges
+}
+
+func isShellFence(info string) bool {
+	info = strings.TrimSpace(strings.ToLower(info))
+	lang, _, _ := strings.Cut(info, " ")
+	switch strings.Trim(lang, "{}.") {
+	case "sh", "bash", "zsh", "fish", "shell", "shell-session", "console", "terminal", "powershell", "pwsh", "cmd", "bat":
+		return true
+	}
+	return false
 }

@@ -5,16 +5,16 @@
 
 [English](README.en.md) · [配置示例](examples/config.yaml) · [来源与许可](NOTICE.md)
 
-CLIProxyAPI（CPA）原生 ABI v1 插件，为 `agy` 和原生 `antigravity` 提供提示词处理。当前版本 **v0.3.1**，发布 Linux amd64 动态库。
+CLIProxyAPI（CPA）原生 ABI v1 插件，为 `agy` 和原生 `antigravity` 提供提示词处理。当前版本 **v0.5.3**，发布 Linux amd64 动态库。
 
 仓库名、运行时插件 ID、商店名称、配置键和发布包前缀统一为 **`antigravity-prompt-bridge`**。
 
 ## 功能
 
-- **启发式身份改写**：识别自我介绍、agent/运行环境声明，改为已确认的 Antigravity 身份句；保留其他规则、项目说明、代码、路径和引用。
+- **Agent 提示词改写**：从自我声明识别 Agent，先应用已有来源的片段模板，再按整词修正残留品牌。可启用整句身份归一化。
 - **原生提示词桥接**：只对原生 `antigravity` 生效，先改写，再将调用方 system/developer 提示词放入用户消息的 `<USER_REQUEST>` 包装中。独立系统字段保留 Antigravity 原版 `<identity>` 块。
 - **独立开关**：`agy` 和 `antigravity` 可分别停用；搬移开关默认开启，不改变 `agy` 原有的处理方式。
-- **协议适配**：支持 Chat Completions、Responses、Anthropic Messages、Gemini 及 Antigravity `request` 外层，保留工具定义、调用记录和结果。
+- **协议适配**：支持 Chat Completions、Responses、Anthropic Messages、Gemini 及 Antigravity `request` 外层，可逆地改写工具名称及其文档引用，保留调用契约和历史正文。
 
 身份句使用：
 
@@ -64,16 +64,16 @@ v0.3.1 起使用统一名称 `antigravity-prompt-bridge`。从本项目 v0.3.0 �
 
 ### 手动安装
 
-1. 从 [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases) 下载 `antigravity-prompt-bridge_0.3.1_linux_amd64.zip` 和 `checksums.txt`。
+1. 从 [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases) 下载 `antigravity-prompt-bridge_0.5.3_linux_amd64.zip` 和 `checksums.txt`。
 2. 在下载目录验证并解压：
 
    ```sh
    sha256sum -c checksums.txt
-   unzip antigravity-prompt-bridge_0.3.1_linux_amd64.zip
+   unzip antigravity-prompt-bridge_0.5.3_linux_amd64.zip
    ```
 
-3. 将解压出的 `antigravity-prompt-bridge.so` 安装到 CPA 插件发现目录，建议命名为 `antigravity-prompt-bridge-v0.3.1.so`。旧版本备份放到发现目录以外。
-4. 保存 CPA 插件配置以触发热加载，并确认已加载版本为 `0.3.1`。
+3. 将解压出的 `antigravity-prompt-bridge.so` 安装到 CPA 插件发现目录，建议命名为 `antigravity-prompt-bridge-v0.5.3.so`。旧版本备份放到发现目录以外。
+4. 保存 CPA 插件配置以触发热加载，并确认已加载版本为 `0.5.3`。
 
 要求 Linux x86-64、GNU libc **2.34 或更新版本**，以及支持原生 ABI v1、请求拦截器和 `host.auth.get_runtime` 的 CPA。Alpine/musl 不适用本发布包。当前依赖 CPA SDK `v7.3.2`。
 
@@ -92,6 +92,7 @@ plugins:
       enable_agy: true
       enable_antigravity: true
       antigravity_bridge_system_prompt: true
+      agent_alias: true
       heuristic_identity: true
       use_default_keywords: true
       custom_mappings: {}
@@ -103,18 +104,35 @@ plugins:
 | `enable_agy` | `true` | 对实际选中的 agy 认证启用过滤 |
 | `enable_antigravity` | `true` | 对实际选中的原生 Antigravity 认证启用处理 |
 | `antigravity_bridge_system_prompt` | `true` | 原生 Antigravity 先改写、再搬移；不影响 agy |
-| `heuristic_identity` | `false` | 推荐明确设为 `true`；默认值保留旧配置兼容性 |
-| `use_default_keywords` | `true` | 启发式开启时只作为身份识别线索 |
-| `custom_mappings` | 空 | 推荐 `{}`；测试资料中的身份句不是运行时词表 |
-| `audit` | `false` | 日志只记录请求 ID、前后正文哈希，不记录提示词内容 |
+| `agent_alias` | `true` | 识别成功后将自我介绍句换成 Antigravity 标准身份句，并启用模板、品牌整词补漏与工具别名；未识别或关闭时使用旧模式 |
+| `heuristic_identity` | `false` | 控制未识别请求的启发式整句身份归一化，推荐开启；已识别 Agent 始终归一化 |
+| `use_default_keywords` | `true` | 控制旧模式的默认关键词预设，以及启发式的身份线索 |
+| `custom_mappings` | 空 | 显式系统文本映射，默认 `{}` |
+| `audit` | `false` | 记录请求 ID、正文哈希、Agent 和改写计数；省略提示词原文 |
 
-只支持 `mode: rewrite`。关闭 `heuristic_identity` 会恢复传统关键词替换行为。
+`agent_alias` 从原始系统文本和实际工具声明识别 Agent。系统文本先应用显式自定义映射，再使用真实工具别名、Agent 片段模板和整词补漏。Claude Code 省略已审查的厂商帮助、模型推荐和产品介绍。Gemini CLI 同时检验身份句、`cli_help` 与 `invoke_agent` 声明，保留非交互模式和帮助工具的用途。Pi 的 `pi agent` 会改写，`api`、`pipeline` 和 `PiAgent` 保留。已声明的 `pi_read` 及其引用使用同一个可逆别名。品牌整词补漏会跳过作普通名词用的小写歧义词，如 `move the cursor`、`a goose`、`your AI copilot`、`cascade of errors`。品牌目录为各家记录厂商名（`vendors`）：只有 `built/created/developed by X`、`a product of X`、`X's official CLI`、`(formerly X)`、`由 X 开发` 这类归属短语会改为 Google Deepmind 团队或删去；`Anthropic API`、`Microsoft content policies` 等功能性引用保留。审计记录模板命中数、残留修正数和保护区命中数。
+
+每个 Agent 通过统一注册入口提供身份规则和可选执行计划。四种协议共用工具声明、Schema、调用与结果视图。OpenCode Code Mode 适配器验证正式目录和 `execute` 的 Schema，支持 `tools.read` 与 `tools.opencode.worktree_list` 这样的单段和双段静态路径。目录引用、`search` 和 `execute.code` 使用同一套映射，客户端执行前恢复原名。动态路径或无法安全还原的调用返回明确错误。
+
+工具声明及参数 Schema 的 `description` 字符串也应用模板和整词补漏。参数名、枚举、默认值、调用参数、普通工具结果、文件内容和历史正文保留。OpenCode 适配器使用固定版本的 JavaScript AST 解析器，按原源码区间改写确定的工具引用。
+
+只支持 `mode: rewrite`。在旧模式中，关闭 `heuristic_identity` 会使用传统关键词替换。已识别 Agent 的模板和整词补漏由 `agent_alias` 控制。
 
 处理范围依据 `selected_auth_index` 查询到的实际提供商，不根据模型名称猜测。插件自行执行且未经过 CPA 认证调度的请求没有该索引，会保持原样；裸模型名可能沿现有路由被其他插件接管。
 
 停用其他具有相同处理功能的旧过滤器，避免叠加改写。单独关闭 `antigravity_bridge_system_prompt` 可恢复原生系统字段位置；关闭对应提供商开关可绕过其改写和搬移。
 
 ## 构建与验证
+
+### Agent 版本和请求跟踪
+
+GitHub Actions 的 **Agent traces** 工作流每天马来西亚时间 09:23 运行，也可通过 **Run workflow** 选择单条发行线。它跟踪 OpenCode V1、OpenCode V2、Pi、Codex、Gemini CLI 和 Claude Code 的稳定版。官方客户端在临时 Git 项目中连接隔离的本地模型端点，发出实际的文本及工具请求。OpenCode 另外探测 Code Mode，以实际目录、`execute` 声明和读取回合为证据。[工作流](.github/workflows/agent-traces.yml)
+
+每条发行线的 Actions artifact 保留 30 天。`release.json` 记录准确版本和来源，`trace.json` 保存脱敏后的请求及哈希，`report.json` 包含 ABI 回放、与上一份同配置成功采集的差异及候选筛选规则。识别不到的 Agent、残留品牌和仍需确认的工具引用会出现在报告里。候选规则通过代码审查纳入运行时，失败的发行线沿用它上一份成功基线。
+
+本地端点返回固定响应，验证客户端实际发送的内容、工具回合和别名恢复。真实模型对提示词改写的理解效果需要单独对照。
+
+### 插件构建
 
 构建工具版本固定在 `.go-version` 和 `.zig-version`：Go **1.27.3**、Zig **0.17.1**；ABI 脚本使用 Python 3.12+ 标准库。
 

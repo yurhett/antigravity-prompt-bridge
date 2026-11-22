@@ -43,6 +43,10 @@ jobs:
         run: |
           python3 scripts/abi_smoke.py build/antigravity-prompt-bridge.so
           python3 scripts/native_bridge_abi.py build/antigravity-prompt-bridge.so --output build/abi-report.json
+          python3 scripts/agent_alias_abi.py build/antigravity-prompt-bridge.so
+          python3 scripts/agent_protocol_abi.py build/antigravity-prompt-bridge.so
+          python3 scripts/opencode_adapter_abi.py build/antigravity-prompt-bridge.so
+          TRACE_TEST_BRIDGE=build/antigravity-prompt-bridge.so python3 -m unittest discover -s scripts/agent_traces
       - name: Package and verify CPA installation assets
         run: |
           python3 scripts/package_release.py

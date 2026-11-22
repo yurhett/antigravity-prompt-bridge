@@ -1,0 +1,158 @@
+name: Agent traces
+
+on:
+  schedule:
+    - cron: '23 1 * * *'
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: Agent release channel
+        type: choice
+        default: all
+        options: [all, opencode-v1, opencode-v2, pi, codex, gemini, claude]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-traces-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bridge:
+    name: Build bridge for replay
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+      - name: Build test library
+        run: |
+          mkdir -p trace-abi
+          go build -trimpath -buildmode=c-shared -o trace-abi/bridge.so .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-trace-abi
+          path: trace-abi/bridge.so
+          retention-days: 1
+          overwrite: true
+
+  trace:
+    name: Trace ${{ matrix.lane }}
+    needs: bridge
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: ${{ fromJSON((!inputs.lane || inputs.lane == 'all') && '["opencode-v1","opencode-v2","pi","codex","gemini","claude"]' || format('["{0}"]', inputs.lane)) }}
+    env:
+      TRACE_LANE: ${{ matrix.lane }}
+      TRACE_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      PYTHONDONTWRITEBYTECODE: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - id: bridge_asset
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-trace-abi
+          path: trace-abi
+
+      - id: resolve
+        name: Resolve exact stable release
+        continue-on-error: true
+        run: |
+          mkdir -p trace-results
+          python3 scripts/agent_traces/releases.py resolve trace-results/release.json --lane "$TRACE_LANE"
+
+      - id: install
+        name: Install official CLI in the capture image
+        if: steps.resolve.outcome == 'success'
+        continue-on-error: true
+        run: |
+          context="$RUNNER_TEMP/trace-context"
+          mkdir -p "$context"
+          cp scripts/agent_traces/{Dockerfile,releases.py,capture.py,protocols.py} trace-results/release.json "$context/"
+          docker build --tag "agent-trace:$TRACE_LANE" "$context"
+
+      - id: capture
+        name: Capture synthetic sessions on loopback
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        run: |
+          status=0
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --pids-limit 256 \
+            --tmpfs /tmp:rw,exec,nosuid,size=1g,mode=1777 \
+            "agent-trace:$TRACE_LANE" - > "$RUNNER_TEMP/trace.json" || status=$?
+          if python3 -m json.tool "$RUNNER_TEMP/trace.json" > /dev/null 2>&1; then
+            mv "$RUNNER_TEMP/trace.json" trace-results/trace.json
+          else
+            status=1
+          fi
+          exit "$status"
+
+      - id: baseline
+        name: Retrieve the previous successful baseline
+        if: steps.capture.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/agent_traces/workflow_support.py baseline "$RUNNER_TEMP" "$TRACE_LANE"
+
+      - id: replay
+        name: Replay the capture and generate review candidates
+        if: steps.baseline.outcome == 'success'
+        continue-on-error: true
+        run: |
+          python3 scripts/agent_traces/report.py trace-results/trace.json trace-abi/bridge.so \
+            trace-results/report.json --baseline "$RUNNER_TEMP/baseline.json"
+
+      - name: Save baseline after successful replay
+        if: steps.replay.outcome == 'success' && github.ref_name == env.TRACE_DEFAULT_BRANCH
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-trace-baseline-${{ matrix.lane }}
+          path: trace-results/trace.json
+          retention-days: 30
+          overwrite: true
+
+      - name: Summarize lane
+        if: always()
+        env:
+          RESOLVE_STATUS: ${{ steps.resolve.outcome }}
+          BRIDGE_STATUS: ${{ steps.bridge_asset.outcome }}
+          INSTALL_STATUS: ${{ steps.install.outcome }}
+          CAPTURE_STATUS: ${{ steps.capture.outcome }}
+          BASELINE_STATUS: ${{ steps.baseline.outcome }}
+          REPLAY_STATUS: ${{ steps.replay.outcome }}
+        run: |
+          mkdir -p trace-results
+          python3 scripts/agent_traces/workflow_support.py summary trace-results "$TRACE_LANE" \
+            "bridge=$BRIDGE_STATUS" "resolve=$RESOLVE_STATUS" "install=$INSTALL_STATUS" "capture=$CAPTURE_STATUS" \
+            "baseline=$BASELINE_STATUS" "replay=$REPLAY_STATUS" > trace-results/summary.md
+          cat trace-results/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save capture and review report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-trace-${{ matrix.lane }}-${{ github.run_attempt }}
+          path: trace-results/
+          retention-days: 30
+
+      - name: Reflect lane failures in workflow status
+        if: always()
+        env:
+          REPLAY_STATUS: ${{ steps.replay.outcome }}
+        run: test "$REPLAY_STATUS" = success

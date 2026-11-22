@@ -1,0 +1,149 @@
+{
+  "opencode-v1": {
+    "version": "1.19.6",
+    "source": "https://registry.npmjs.org/opencode-ai",
+    "protocol": "chat",
+    "scenario": "text",
+    "request_sha256": "eb64a7884fd110241a1c032fd18be26ed130c3e094c7ae1a25d62bb368af4fa5",
+    "fragments": {
+      "identity": {
+        "path": "/messages/0/content",
+        "text": "You are opencode, an agent - please keep going until the user’s query is completely resolved, before ending your turn and yielding back to the user."
+      },
+      "identity_prefix": {
+        "path": "/messages/0/content",
+        "text": "You are opencode, an agent - please"
+      }
+    }
+  },
+  "opencode-v2": {
+    "version": "2.3.2",
+    "source": "https://github.com/anomalyco/homebrew-tap/blob/582e67321558cfab76f1813db3fbf96880659d12/opencode-v2.rb",
+    "protocol": "chat",
+    "scenario": "text",
+    "request_sha256": "358f13a28e352424af34ee9fb41b5f9c02f84ed005bc0aaacbe61c78ac694ccc",
+    "fragments": {
+      "identity": {
+        "path": "/messages/0/content",
+        "text": "You are an AI agent running in OpenCode, a coding agent harness."
+      }
+    }
+  },
+  "opencode-v2-code-mode": {
+    "version": "2.3.2",
+    "source": "https://github.com/anomalyco/homebrew-tap/blob/582e67321558cfab76f1813db3fbf96880659d12/opencode-v2.rb",
+    "protocol": "chat",
+    "scenario": "code-mode",
+    "request_sha256": "380ae423985b1e6d36c42d5911fac1ef53a7c1a4764c3cddfdabeeb949731f04",
+    "fragments": {
+      "header": {
+        "path": "/messages/0/content",
+        "text": "## Code Mode tools (call only inside `execute`)"
+      },
+      "read": {
+        "path": "/messages/0/content",
+        "text": "  - tools.read({"
+      },
+      "worktree_list": {
+        "path": "/messages/0/content",
+        "text": "  - tools.opencode.worktree_list(): Promise<{"
+      }
+    },
+    "tool": {
+      "path": "/tools/4/function",
+      "name": "execute",
+      "description": "Run JavaScript in a confined Code Mode runtime to script tool calls and HTTP requests and compose their results.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      }
+    }
+  },
+  "pi": {
+    "version": "1.6.0",
+    "source": "https://registry.npmjs.org/@earendil-works/pi-coding-agent",
+    "protocol": "chat",
+    "scenario": "text",
+    "request_sha256": "9fed63d47aae4286339b41d3aaee4763a10afec140e1157c39c825ecc522dda8",
+    "fragments": {
+      "identity": {
+        "path": "/messages/0/content",
+        "text": "You are a coding assistant running inside pi, a coding agent harness."
+      }
+    }
+  },
+  "codex": {
+    "version": "0.171.0",
+    "source": "https://registry.npmjs.org/@openai/codex",
+    "protocol": "responses",
+    "scenario": "text",
+    "request_sha256": "9633a9afea5a9aa60a5cceb8458d55165ee84dd899026df7d838a26ba2070e40",
+    "fragments": {
+      "identity": {
+        "path": "/input/0/content/0/text",
+        "text": "You are a coding agent running in the Codex CLI, a terminal-based coding assistant. Codex CLI is an open source project led by OpenAI."
+      },
+      "disambiguation": {
+        "path": "/input/0/content/0/text",
+        "text": "Within this context, Codex refers to the open-source agentic coding interface (not the old Codex language model built by OpenAI)."
+      }
+    }
+  },
+  "gemini": {
+    "version": "0.70.0",
+    "source": "https://registry.npmjs.org/@google/gemini-cli",
+    "protocol": "gemini",
+    "scenario": "text",
+    "request_sha256": "d0269fdeb5a7623c7576a5eae5e2c996b0f7c591e6b9a5615fe4fdb4d4f777f0",
+    "fragments": {
+      "identity": {
+        "path": "/systemInstruction/parts/0/text",
+        "text": "You are a non-interactive CLI agent specializing in software engineering tasks."
+      },
+      "cli_help": {
+        "path": "/systemInstruction/parts/0/text",
+        "text": "- cli_help -> Specialized agent for answering questions about the Gemini CLI application. Invoke this agent for questions regarding CLI features, configuration schemas (e.g., policies), or instructions on how to create custom subagents. It queries internal documentation to provide accurate usage guidance."
+      }
+    },
+    "tool": {
+      "path": "/tools/0/functionDeclarations/7",
+      "name": "invoke_agent",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "agent_name": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "claude": {
+    "version": "2.1.329",
+    "source": "https://registry.npmjs.org/@anthropic-ai/claude-code",
+    "protocol": "messages",
+    "scenario": "text",
+    "request_sha256": "3c7fb916e404a0c54003590950c606df5f0d91218df2a79b6641cec3956ba2ea",
+    "fragments": {
+      "identity": {
+        "path": "/system/1/text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+      },
+      "help": {
+        "path": "/system/2/text",
+        "text": " - If the user asks for help or wants to give feedback inform them of the following:\n  - /help: Get help with using Claude Code\n  - To give feedback, users should report the issue at https://github.com/anthropics/claude-code/issues"
+      },
+      "environment": {
+        "path": "/system/2/text",
+        "text": "# Environment\n - The most recent Claude models are the Claude 5 family. Model IDs — Fable 5.2: 'claude-fable-5-2', Opus 5.5: 'claude-opus-5-5', Sonnet 5.5: 'claude-sonnet-5-5', Haiku 5.5: 'claude-haiku-5-5'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code gives faster output on this session's model if it supports fast mode, and otherwise switches the session to Claude Opus. It can be toggled with /fast."
+      }
+    }
+  }
+}

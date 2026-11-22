@@ -1,0 +1,54 @@
+[
+  {
+    "family": "Codex",
+    "match": "You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.",
+    "replacement": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.",
+    "source": "testdata/verified-identities.json"
+  },
+  {
+    "family": "Codex",
+    "match": "You are a coding agent running in the Codex CLI, a terminal-based coding assistant.",
+    "replacement": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.",
+    "source": "testdata/verified-identities.json"
+  },
+  {
+    "family": "Codex",
+    "match": "You are GPT-5.1 running in the Codex CLI, a terminal-based coding assistant.",
+    "replacement": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.",
+    "source": "testdata/verified-identities.json"
+  },
+  {
+    "family": "Codex",
+    "match": "Codex CLI is an open source project led by OpenAI.",
+    "replacement": "",
+    "source": "testdata/verified-identities.json"
+  },
+  {
+    "family": "Pi",
+    "match": "You are a coding assistant running inside pi, a coding agent harness.",
+    "replacement": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.",
+    "source": "https://raw.githubusercontent.com/badlogic/pi-mono/05fd3fbda0bbb9a1c7a76e4bf92ab58ed77c8d94/packages/coding-agent/src/core/system-prompt.ts",
+    "source_sha256": "097e677d2e6161028947e3bc15c0157676e49081567ab7251d7f5b32216a4f16"
+  },
+  {
+    "family": "Hermes Agent",
+    "match": "You are Hermes Agent, built by Nous Research.",
+    "replacement": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.",
+    "source": "https://raw.githubusercontent.com/NousResearch/hermes-agent/f7e2898aaefc8f967dbf7345e3999a65672fe60e/agent/prompt_builder.py",
+    "source_sha256": "6ccb0dabe44b5fec31abd76de149e1916fe3d48b4aa33ffa225f6c24ab683be5"
+  },
+  {
+    "family": "Goose",
+    "match": "You are a general-purpose AI agent called goose, created by AAIF (Agentic AI Foundation).",
+    "replacement": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.",
+    "source": "https://raw.githubusercontent.com/block/goose/main/crates/goose/src/prompts/system.md",
+    "source_sha256": "586317093d9e90363d1b577adab46ab6c9d13dd41eee505566bddf460ddd5445"
+  },
+  {
+    "family": "Goose",
+    "match": "goose is being developed as an open-source software project.",
+    "replacement": "",
+    "source": "https://raw.githubusercontent.com/block/goose/main/crates/goose/src/prompts/system.md",
+    "source_sha256": "586317093d9e90363d1b577adab46ab6c9d13dd41eee505566bddf460ddd5445"
+  }
+]

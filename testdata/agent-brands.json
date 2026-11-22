@@ -1,0 +1,422 @@
+[
+  {
+    "name": "Claude Agent",
+    "family": "Claude Code",
+    "ambiguous": false,
+    "vendors": [
+      "Anthropic"
+    ]
+  },
+  {
+    "name": "Claude Code",
+    "family": "Claude Code",
+    "ambiguous": false
+  },
+  {
+    "name": "ClaudeCode",
+    "family": "Claude Code",
+    "ambiguous": false,
+    "identity_only": true
+  },
+  {
+    "name": "OpenAI Codex",
+    "family": "Codex",
+    "ambiguous": false,
+    "vendors": [
+      "OpenAI"
+    ]
+  },
+  {
+    "name": "Codex CLI",
+    "family": "Codex",
+    "ambiguous": false
+  },
+  {
+    "name": "Codex",
+    "family": "Codex",
+    "ambiguous": false
+  },
+  {
+    "name": "OpenCode",
+    "family": "OpenCode",
+    "ambiguous": false
+  },
+  {
+    "name": "GitHub Copilot CLI",
+    "family": "GitHub Copilot",
+    "ambiguous": false,
+    "vendors": [
+      "GitHub",
+      "Microsoft"
+    ]
+  },
+  {
+    "name": "GitHub Copilot",
+    "family": "GitHub Copilot",
+    "ambiguous": false
+  },
+  {
+    "name": "Copilot",
+    "family": "GitHub Copilot",
+    "ambiguous": true,
+    "identity_only": true
+  },
+  {
+    "name": "Gemini Code Assist",
+    "family": "Gemini Code Assist",
+    "ambiguous": false
+  },
+  {
+    "name": "Gemini CLI",
+    "family": "Gemini CLI",
+    "ambiguous": false
+  },
+  {
+    "name": "Cursor",
+    "family": "Cursor",
+    "ambiguous": true,
+    "vendors": [
+      "Anysphere"
+    ]
+  },
+  {
+    "name": "Windsurf",
+    "family": "Windsurf/Cascade",
+    "ambiguous": false,
+    "vendors": [
+      "Codeium",
+      "Windsurf",
+      "Cognition"
+    ]
+  },
+  {
+    "name": "Codeium",
+    "family": "Windsurf/Cascade",
+    "ambiguous": false
+  },
+  {
+    "name": "Cline",
+    "family": "Cline",
+    "ambiguous": false
+  },
+  {
+    "name": "Roo Code",
+    "family": "Roo Code",
+    "ambiguous": false
+  },
+  {
+    "name": "Kilo Code",
+    "family": "Kilo Code",
+    "ambiguous": false
+  },
+  {
+    "name": "Aider",
+    "family": "Aider",
+    "ambiguous": true
+  },
+  {
+    "name": "Continue.dev",
+    "family": "Continue",
+    "ambiguous": false
+  },
+  {
+    "name": "Amazon Q Developer",
+    "family": "Amazon Q/CodeWhisperer",
+    "ambiguous": false,
+    "vendors": [
+      "Amazon Web Services",
+      "AWS",
+      "Amazon"
+    ]
+  },
+  {
+    "name": "Amazon CodeWhisperer",
+    "family": "Amazon Q/CodeWhisperer",
+    "ambiguous": false
+  },
+  {
+    "name": "JetBrains AI Assistant",
+    "family": "JetBrains AI Assistant",
+    "ambiguous": false,
+    "vendors": [
+      "JetBrains"
+    ]
+  },
+  {
+    "name": "JetBrains Junie",
+    "family": "Junie",
+    "ambiguous": false,
+    "vendors": [
+      "JetBrains"
+    ]
+  },
+  {
+    "name": "Kiro",
+    "family": "Kiro",
+    "ambiguous": true,
+    "vendors": [
+      "Amazon Web Services",
+      "AWS",
+      "Amazon"
+    ]
+  },
+  {
+    "name": "Qoder CLI",
+    "family": "Qoder",
+    "ambiguous": false,
+    "vendors": [
+      "Alibaba Cloud",
+      "Alibaba",
+      "阿里云",
+      "阿里巴巴"
+    ]
+  },
+  {
+    "name": "Qoder",
+    "family": "Qoder",
+    "ambiguous": true
+  },
+  {
+    "name": "Qwen Code",
+    "family": "Qwen Code",
+    "ambiguous": false,
+    "vendors": [
+      "Alibaba Cloud",
+      "Alibaba",
+      "Qwen Team",
+      "阿里云",
+      "阿里巴巴",
+      "通义千问团队"
+    ]
+  },
+  {
+    "name": "Trae",
+    "family": "Trae",
+    "ambiguous": true,
+    "vendors": [
+      "ByteDance",
+      "字节跳动"
+    ]
+  },
+  {
+    "name": "Tabnine",
+    "family": "Tabnine",
+    "ambiguous": false,
+    "vendors": [
+      "Tabnine"
+    ]
+  },
+  {
+    "name": "Sourcegraph Cody",
+    "family": "Cody",
+    "ambiguous": false,
+    "vendors": [
+      "Sourcegraph"
+    ]
+  },
+  {
+    "name": "Augment Code",
+    "family": "Augment",
+    "ambiguous": false,
+    "vendors": [
+      "Augment Code"
+    ]
+  },
+  {
+    "name": "Replit Agent",
+    "family": "Replit",
+    "ambiguous": false,
+    "vendors": [
+      "Replit"
+    ]
+  },
+  {
+    "name": "Replit Ghostwriter",
+    "family": "Replit",
+    "ambiguous": false
+  },
+  {
+    "name": "Devin",
+    "family": "Devin",
+    "ambiguous": true,
+    "vendors": [
+      "Cognition AI",
+      "Cognition"
+    ]
+  },
+  {
+    "name": "OpenHands",
+    "family": "OpenHands",
+    "ambiguous": false,
+    "vendors": [
+      "All Hands AI"
+    ]
+  },
+  {
+    "name": "SWE-agent",
+    "family": "SWE-agent",
+    "ambiguous": false
+  },
+  {
+    "name": "Goose",
+    "family": "Goose",
+    "ambiguous": true,
+    "vendors": [
+      "Block",
+      "AAIF"
+    ]
+  },
+  {
+    "name": "Zed AI",
+    "family": "Zed",
+    "ambiguous": false,
+    "vendors": [
+      "Zed Industries"
+    ]
+  },
+  {
+    "name": "Void Editor",
+    "family": "Void",
+    "ambiguous": false
+  },
+  {
+    "name": "PearAI",
+    "family": "PearAI",
+    "ambiguous": false
+  },
+  {
+    "name": "Refact.ai",
+    "family": "Refact",
+    "ambiguous": false,
+    "vendors": [
+      "Refact.ai"
+    ]
+  },
+  {
+    "name": "Tabby",
+    "family": "Tabby",
+    "ambiguous": true
+  },
+  {
+    "name": "GitLab Duo",
+    "family": "GitLab Duo",
+    "ambiguous": false,
+    "vendors": [
+      "GitLab"
+    ]
+  },
+  {
+    "name": "Visual Studio IntelliCode",
+    "family": "IntelliCode",
+    "ambiguous": false,
+    "vendors": [
+      "Microsoft"
+    ]
+  },
+  {
+    "name": "CodeBuddy",
+    "family": "CodeBuddy",
+    "ambiguous": false,
+    "vendors": [
+      "Tencent Cloud",
+      "Tencent",
+      "腾讯云",
+      "腾讯"
+    ]
+  },
+  {
+    "name": "Blackbox AI",
+    "family": "Blackbox",
+    "ambiguous": false
+  },
+  {
+    "name": "Pieces for Developers",
+    "family": "Pieces",
+    "ambiguous": false
+  },
+  {
+    "name": "Qodo",
+    "family": "Qodo",
+    "ambiguous": true,
+    "vendors": [
+      "Qodo"
+    ]
+  },
+  {
+    "name": "CodiumAI",
+    "family": "Qodo",
+    "ambiguous": false
+  },
+  {
+    "name": "Rovo Dev CLI",
+    "family": "Rovo Dev",
+    "ambiguous": false,
+    "vendors": [
+      "Atlassian"
+    ]
+  },
+  {
+    "name": "Factory Droid",
+    "family": "Factory Droid",
+    "ambiguous": false,
+    "vendors": [
+      "Factory AI",
+      "Factory"
+    ]
+  },
+  {
+    "name": "OpenClaw",
+    "family": "OpenClaw",
+    "ambiguous": false
+  },
+  {
+    "name": "Clawdbot",
+    "family": "OpenClaw",
+    "ambiguous": false
+  },
+  {
+    "name": "Moltbot",
+    "family": "OpenClaw",
+    "ambiguous": false
+  },
+  {
+    "name": "Hermes Agent",
+    "family": "Hermes Agent",
+    "ambiguous": false,
+    "vendors": [
+      "Nous Research"
+    ]
+  },
+  {
+    "name": "Hermes",
+    "family": "Hermes Agent",
+    "ambiguous": true
+  },
+  {
+    "name": "WorkBuddy",
+    "family": "WorkBuddy",
+    "ambiguous": false,
+    "vendors": [
+      "Tencent",
+      "腾讯"
+    ]
+  },
+  {
+    "name": "Pi",
+    "family": "Pi",
+    "ambiguous": true,
+    "identity_only": true
+  },
+  {
+    "name": "Roo",
+    "family": "Roo Code",
+    "ambiguous": true,
+    "identity_only": true
+  },
+  {
+    "name": "Cascade",
+    "family": "Windsurf/Cascade",
+    "ambiguous": true,
+    "identity_only": true
+  }
+]

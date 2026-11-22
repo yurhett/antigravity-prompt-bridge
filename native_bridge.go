@@ -35,8 +35,9 @@ func rewriteProviderRequestBody(body []byte, cfg filterConfig, provider string) 
 }
 
 func bridgeNativeSystemPrompt(body []byte) ([]byte, bool) {
-	var root map[string]any
-	if json.Unmarshal(body, &root) != nil || root == nil || !bridgePromptObject(root) {
+	value, err := decodeAliasJSON(body)
+	root, _ := value.(map[string]any)
+	if err != nil || root == nil || !bridgePromptObject(root) {
 		return nil, false
 	}
 	next, err := json.Marshal(root)

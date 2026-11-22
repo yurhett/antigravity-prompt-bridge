@@ -13,6 +13,7 @@ func TestScopeUsesSelectedCredentialRatherThanModelOrWireFormat(t *testing.T) {
 	old := hostCall
 	defer func() { hostCall = old; restoreDefaultFilterConfig(t) }()
 	cfg := defaultFilterConfig()
+	cfg.AgentAlias = false                    // Isolate provider/identity handling.
 	cfg.AntigravityBridgeSystemPrompt = false // This test isolates rewrite/provider selection.
 	applyFilterConfig(cfg)
 	for _, tt := range []struct {
@@ -75,7 +76,7 @@ func TestRegistersOnlyInterceptorAndRejectsBlockMode(t *testing.T) {
 	if result.Metadata.Name == "" || result.Metadata.Version == "" || result.Metadata.Author == "" || result.Metadata.GitHubRepository == "" {
 		t.Fatal("Missing CPA-required metadata")
 	}
-	if len(result.Capabilities) != 1 || !result.Capabilities["request_interceptor"] {
+	if len(result.Capabilities) != 4 || !result.Capabilities["request_interceptor"] || !result.Capabilities["response_interceptor"] || !result.Capabilities["response_stream_interceptor"] || !result.Capabilities["request_lifecycle_plugin"] {
 		t.Fatal(result.Capabilities)
 	}
 	if _, err := parseFilterConfigYAML([]byte("mode: block")); err == nil {

@@ -76,7 +76,7 @@ def main():
         for case in cases:
             for enabled in (False, True):
                 registration = plugin.configure(
-                    "antigravity_bridge_system_prompt: " + str(enabled).lower() + "\ncustom_mappings: {}\n"
+                    "agent_alias: false\nantigravity_bridge_system_prompt: " + str(enabled).lower() + "\ncustom_mappings: {}\n"
                 )
                 assert registration["metadata"]["Version"] == version
                 for provider in ("agy", "antigravity"):

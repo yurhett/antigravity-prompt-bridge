@@ -8,5 +8,5 @@ test "$(zig version)" = "$(cat .zig-version)"
 mkdir -p build
 env GOOS=linux GOARCH=amd64 GOAMD64=v1 CGO_ENABLED=1 \
   CC='zig cc -target x86_64-linux-gnu.2.34' \
-  go build -trimpath -buildmode=c-shared -ldflags='-s -w' \
+  go build -trimpath -buildvcs=false -buildmode=c-shared -ldflags='-s -w' \
   -o build/antigravity-prompt-bridge.so .

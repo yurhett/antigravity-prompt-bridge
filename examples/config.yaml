@@ -8,6 +8,7 @@ plugins:
       enable_agy: true
       enable_antigravity: true
       antigravity_bridge_system_prompt: true
+      agent_alias: true
       heuristic_identity: true
       use_default_keywords: true
       custom_mappings: {}

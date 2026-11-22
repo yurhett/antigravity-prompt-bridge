@@ -24,7 +24,7 @@ def main():
     try:
         for agy, native in [(True, True), (True, False), (False, True), (False, False), (None, None)]:
             extra = "" if agy is None else f"enable_agy: {str(agy).lower()}\nenable_antigravity: {str(native).lower()}\n"
-            registration = plugin.configure(extra + "antigravity_bridge_system_prompt: false\n")
+            registration = plugin.configure(extra + "agent_alias: false\nantigravity_bridge_system_prompt: false\n")
             assert registration["metadata"]["Version"] == version
             assert registration["metadata"]["GitHubRepository"] == "https://github.com/yurhett/antigravity-prompt-bridge"
             for provider in ["agy", "antigravity", "openai"]:
@@ -33,7 +33,7 @@ def main():
                 assert plugin.transform(body) == (expected if wanted else body), (provider, agy, native)
                 count += 1
         plugin.provider = "antigravity"
-        plugin.configure()  # Omitted switch must enable bridging.
+        plugin.configure("agent_alias: false\n")  # Omitted switch must enable bridging.
         bridged = plugin.transform(body)
         assert bridged["messages"][0]["content"] == NATIVE_SYSTEM
         assert bridged["messages"][2:] == body["messages"][2:]

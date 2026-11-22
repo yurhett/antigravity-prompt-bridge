@@ -1,0 +1,110 @@
+[
+  {
+    "agent": "Codex",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/openai/codex/b78fa4af8636859f4acc4d57420e41e923c84cdd/codex-rs/core/src/tools/handlers/shell_spec.rs",
+    "source_sha256": "2536401dc5c3bf49ba964c812e1834dfa0fb8ecd877bb64a293acbfa2bfda849",
+    "observed_at": "2026-11-18T05:13:17.642574+00:00",
+    "excerpt": "Runs a command in a PTY, returning output or a session ID for ongoing interaction.",
+    "expected": "Runs a command in a PTY, returning output or a session ID for ongoing interaction."
+  },
+  {
+    "agent": "Gemini CLI",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/google-gemini/gemini-cli/4f343cabc7b59ab990d7411e920094108524abff/packages/core/src/prompts/snippets.ts",
+    "source_sha256": "8c91fc621b4f0cc7eb777f01fdd31051a428611051c13f0f1601c00d8c77aa64",
+    "observed_at": "2026-11-18T05:13:17.643484+00:00",
+    "excerpt": "- **Tools vs. Text:** Use tools for actions, text output *only* for communication. Do not add explanatory comments within tool calls.",
+    "expected": "- **Tools vs. Text:** Use tools for actions, text output *only* for communication. Do not add explanatory comments within tool calls."
+  },
+  {
+    "agent": "Pi",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/badlogic/pi-mono/05fd3fbda0bbb9a1c7a76e4bf92ab58ed77c8d94/packages/coding-agent/src/core/system-prompt.ts",
+    "source_sha256": "097e677d2e6161028947e3bc15c0157676e49081567ab7251d7f5b32216a4f16",
+    "observed_at": "2026-11-18T05:13:17.643675+00:00",
+    "excerpt": "You are a coding assistant running inside pi, a coding agent harness. Help users inspect files, run commands, and modify code.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team. Help users inspect files, run commands, and modify code."
+  },
+  {
+    "agent": "Pi",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/badlogic/pi-mono/05fd3fbda0bbb9a1c7a76e4bf92ab58ed77c8d94/packages/coding-agent/src/core/system-prompt.ts",
+    "source_sha256": "097e677d2e6161028947e3bc15c0157676e49081567ab7251d7f5b32216a4f16",
+    "observed_at": "2026-11-18T05:13:17.643675+00:00",
+    "excerpt": "Use bash for file operations like ls, rg, find",
+    "expected": "Use bash for file operations like ls, rg, find"
+  },
+  {
+    "agent": "Hermes Agent",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/f7e2898aaefc8f967dbf7345e3999a65672fe60e/agent/prompt_builder.py",
+    "source_sha256": "6ccb0dabe44b5fec31abd76de149e1916fe3d48b4aa33ffa225f6c24ab683be5",
+    "observed_at": "2026-11-18T05:13:17.644123+00:00",
+    "excerpt": "You are Hermes Agent, built by Nous Research. Be direct: match the length of your reply to the weight of the ask ",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team. Be direct: match the length of your reply to the weight of the ask "
+  },
+  {
+    "agent": "Cline",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/cline/cline/main/sdk/packages/shared/src/prompt/system/act.ts",
+    "source_sha256": "a6f14deaf17c8e552af331a478fe4fc798a51822fa38da62d00e475cecc6d3eb",
+    "observed_at": "2026-11-18T04:20:09.371838+00:00",
+    "excerpt": "- Good parallelism examples: read all known relevant files in one read_files call; run independent inspection commands in one run_commands call; emit independent read_files, search_codebase, and run_commands calls together in one response; emit multiple editor calls together when editing different files or non-overlapping regions.",
+    "expected": "- Good parallelism examples: read all known relevant files in one read_files call; run independent inspection commands in one run_commands call; emit independent read_files, search_codebase, and run_commands calls together in one response; emit multiple editor calls together when editing different files or non-overlapping regions."
+  },
+  {
+    "agent": "Roo Code",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/RooCodeInc/Roo-Code/main/src/core/prompts/sections/tool-use.ts",
+    "source_sha256": "d68d750156f0b4f6c42ee2b2092a9846ff6fdb37ef09c860aa81b209b95a2482",
+    "observed_at": "2026-11-18T04:20:09.372492+00:00",
+    "excerpt": "You have access to a set of tools that are executed upon the user's approval. Use the provider-native tool-calling mechanism. Do not include XML markup or examples. You must call at least one tool per assistant response. Prefer calling as many tools as are reasonably needed in a single response to reduce back-and-forth and complete tasks faster.",
+    "expected": "You have access to a set of tools that are executed upon the user's approval. Use the provider-native tool-calling mechanism. Do not include XML markup or examples. You must call at least one tool per assistant response. Prefer calling as many tools as are reasonably needed in a single response to reduce back-and-forth and complete tasks faster."
+  },
+  {
+    "agent": "Goose",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/block/goose/main/crates/goose/src/prompts/system.md",
+    "source_sha256": "586317093d9e90363d1b577adab46ab6c9d13dd41eee505566bddf460ddd5445",
+    "observed_at": "2026-11-18T04:20:09.372625+00:00",
+    "excerpt": "You are a general-purpose AI agent called goose, created by AAIF (Agentic AI Foundation).\ngoose is being developed as an open-source software project.",
+    "expected": "You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.\n"
+  },
+  {
+    "agent": "Aider",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/Aider-AI/aider/main/aider/coders/editblock_prompts.py",
+    "source_sha256": "c4d277962f6eac558e16b80e9567496302393c608365bc2ba2e5e000f33bbcba",
+    "observed_at": "2026-11-18T04:27:37.968114+00:00",
+    "excerpt": "All changes to files must use this *SEARCH/REPLACE block* format.",
+    "expected": "All changes to files must use this *SEARCH/REPLACE block* format."
+  },
+  {
+    "agent": "Continue",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/continuedev/continue/main/core/tools/systemMessageTools/buildToolsSystemMessage.ts",
+    "source_sha256": "6d0d0dbed10bc4dfc29e6e7aa1d82a4a7901b2ac40bd156ae0db76c82cc5ad1d",
+    "observed_at": "2026-11-18T04:27:37.968602+00:00",
+    "excerpt": "The following tools are available to you:",
+    "expected": "The following tools are available to you:"
+  },
+  {
+    "agent": "Void",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/voideditor/void/main/src/vs/workbench/contrib/void/common/prompt/prompts.ts",
+    "source_sha256": "6d583dc0ce746c34b7273a94e083b04b784e4900de58b651f023213ab05809ec",
+    "observed_at": "2026-11-18T05:07:07.958644+00:00",
+    "excerpt": "Returns full contents of a given file.",
+    "expected": "Returns full contents of a given file."
+  },
+  {
+    "agent": "OpenCode",
+    "kind": "official_verbatim_excerpt",
+    "source_url": "https://raw.githubusercontent.com/anomalyco/opencode/dev/packages/core/src/session/runner/prompt/system.txt",
+    "source_sha256": "610d5f0faf1580a7568d6866411f789d3bb442efd41208740d66d896d59c7da4",
+    "observed_at": "2026-11-18T04:25:43.625288+00:00",
+    "excerpt": "- Prefer parallelizing independent tool calls.",
+    "expected": "- Prefer parallelizing independent tool calls."
+  }
+]
