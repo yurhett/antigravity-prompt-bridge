@@ -1,4 +1,4 @@
-# antigravity-prompt-bridge v0.5.3
+# antigravity-prompt-bridge v0.5.4
 
 Independent CPA native ABI v1 plugin for Linux amd64. Filters caller system/developer instructions for the selected `agy` or `antigravity` credential. Provider selection uses `selected_auth_index` and read-only `host.auth.get_runtime`; model prefixes and client protocol do not determine scope. Unknown credentials pass through.
 
@@ -21,7 +21,7 @@ plugins:
       audit: false
 ```
 
-The recommended configuration leaves custom mappings empty. Disable the legacy antigravity-coding-filter to avoid processing requests twice. Supported fragment templates and their sources are recorded in `testdata/agent-prompt-templates.json`. Templates and heuristic identity normalization can use this verified native sentence:
+The recommended configuration leaves custom mappings empty. Disable the legacy antigravity-coding-filter to avoid processing requests twice. Supported fragment templates and their sources are recorded in `internal/rewrite/assets/agent-prompt-templates.json`. Templates and heuristic identity normalization can use this verified native sentence:
 
 > You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.
 
@@ -38,6 +38,10 @@ OpenAI Chat Completions, Responses, Anthropic Messages and Gemini requests (incl
 Set this switch to `false` to retain native system-field placement while keeping the existing rewriting behavior. `enable_antigravity: false` bypasses both rewriting and bridging for that provider. `agy` retains its existing rewrite path regardless of the bridge switch. The role labels in the wrapper are ordinary text: relocated instructions no longer occupy the API's system/developer role. Turning on this bridge does not guarantee upstream availability or tool success.
 
 Whole-sentence identity normalization skips fields larger than 256 KiB and candidate sentences larger than 2048 bytes, and limits identity rewrites to 128 per field. Optional audit logs contain request IDs, body hashes, recognized agent families, template hits, fixed residuals, and protected residuals. Prompt text is excluded.
+
+## Agent traces
+
+Download `agent-traces-all` from the Actions run summary for captures, replay, and concrete changes. Starting with `v0.5.4`, a successful release capture is attached to its GitHub Release as `agent-traces-baseline.zip`. Scheduled and manual runs compare against the latest stable tag. Release runs compare against the previous stable tag.
 
 ## Build and verify
 
@@ -59,11 +63,11 @@ Repository, runtime plugin ID, store name, configuration key and asset prefix al
 https://raw.githubusercontent.com/yurhett/antigravity-prompt-bridge/main/registry.json
 ```
 
-Download `antigravity-prompt-bridge_0.5.3_linux_amd64.zip` and `checksums.txt` from [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases/latest), verify the SHA256, and extract the root-level `antigravity-prompt-bridge.so`.
+Download `antigravity-prompt-bridge_0.5.4_linux_amd64.zip` and `checksums.txt` from [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases/latest), verify the SHA256, and extract the root-level `antigravity-prompt-bridge.so`.
 
 When upgrading from this project's v0.3.0, move the configuration from `plugins.configs.agy-coding-filter` to `plugins.configs.antigravity-prompt-bridge`, preserving all settings. Remove the old configuration key and binary from plugin discovery before enabling the new plugin. The v0.3.0 tag and Release remain available for rollback. Prompt processing and defaults are unchanged by the rename.
 
-Back up the old binary outside CPA's plugin discovery directory. Install as `antigravity-prompt-bridge-v0.5.3.so` in the configured plugins directory and save plugin configuration in CPAMC to trigger hot reload. A changed versioned file path is required for replacement. Confirm runtime version and boolean settings above. To bypass only one provider, turn off its switch. To roll back placement only, disable `antigravity_bridge_system_prompt`. To roll back the binary, remove the new versioned file, restore the backed-up binary, and reload configuration.
+Back up the old binary outside CPA's plugin discovery directory. Install as `antigravity-prompt-bridge-v0.5.4.so` in the configured plugins directory and save plugin configuration in CPAMC to trigger hot reload. A changed versioned file path is required for replacement. Confirm runtime version and boolean settings above. To bypass only one provider, turn off its switch. To roll back placement only, disable `antigravity_bridge_system_prompt`. To roll back the binary, remove the new versioned file, restore the backed-up binary, and reload configuration.
 
 This is an independently maintained adaptation. Source attribution is preserved for jellyfish-p/cpa-plugin-antigravity-coding-filter v0.3.1 (MIT). The stock CLIProxy Antigravity plugin remains independent.
 

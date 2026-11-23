@@ -1,5 +1,10 @@
 # 更新记录
 
+## v0.5.4
+
+- 拆分 C ABI 入口、CPA 插件生命周期、配置、协议视图和改写引擎，保留原有插件接口与处理行为。
+- Agent traces 随发布 tag 保存基线。手动和定时运行比较最新的稳定 tag，Actions Summary 显示具体差异并提供统一下载包。
+
 ## v0.5.3
 
 - 五个已采集 Agent 通过统一注册入口和四协议视图接入。补齐 Claude Code 和 Gemini CLI 识别，按实测模板删减 Claude 厂商说明，保留 OpenCode V1 的继续执行指令。

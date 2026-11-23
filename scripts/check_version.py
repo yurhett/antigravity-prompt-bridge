@@ -10,13 +10,13 @@ REPOSITORY = "https://github.com/yurhett/antigravity-prompt-bridge"
 
 
 def metadata():
-    source = (ROOT / "main.go").read_text()
+    source = (ROOT / "internal" / "config" / "config.go").read_text()
     fields = {name: re.search(r'\b' + name + r'\s*=\s*"([^"]+)"', source).group(1)
-              for name in ("pluginName", "pluginVersion", "pluginRepository")}
+              for name in ("PluginName", "PluginVersion", "PluginRepository")}
     plugin = json.loads((ROOT / "registry.json").read_text())["plugins"][0]
-    assert fields["pluginName"] == plugin["id"] == "antigravity-prompt-bridge"
-    assert fields["pluginVersion"] == plugin["version"]
-    assert fields["pluginRepository"] == plugin["repository"] == REPOSITORY
+    assert fields["PluginName"] == plugin["id"] == "antigravity-prompt-bridge"
+    assert fields["PluginVersion"] == plugin["version"]
+    assert fields["PluginRepository"] == plugin["repository"] == REPOSITORY
     assert (ROOT / "go.mod").read_text().splitlines()[0] == "module " + REPOSITORY.removeprefix("https://")
     assert re.fullmatch(r"\d+\.\d+\.\d+", plugin["version"]), plugin["version"]
     return plugin

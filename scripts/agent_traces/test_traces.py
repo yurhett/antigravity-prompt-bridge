@@ -2,12 +2,14 @@
 
 import copy
 import io
+import json
 import os
 import re
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 from zipfile import ZipFile
 
 import releases
@@ -170,30 +172,158 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(first["aliases"][0]["original"], "pi_read")
 
 
+def tagged_trace(lane, version, with_code_mode=False):
+    protocol, model = LANES[lane]
+    trace = pi_trace(version, "You are this fixture agent.", "read")
+    trace["release"]["lane"] = lane
+    body = copy.deepcopy(trace["scenarios"][0]["requests"][0]["body"])
+    result = {
+        "chat": {"messages": body["messages"] + [{"role": "tool", "content": RESULT_TOKEN}]},
+        "responses": {"input": [{"type": "function_call_output", "output": RESULT_TOKEN}]},
+        "messages": {"messages": body["messages"] + [
+            {"role": "user", "content": [{"type": "tool_result", "content": RESULT_TOKEN}]}]},
+        "gemini": {"contents": [{"parts": [{"functionResponse": {"response": {"text": RESULT_TOKEN}}}]}]},
+    }[protocol]
+    for scenario in trace["scenarios"]:
+        scenario.update(protocol=protocol, model=model, requests=[publish(body, "/fixture")])
+        if scenario["scenario"] == "read":
+            scenario["requests"].append(publish({**body, **result}, "/fixture"))
+    if lane.startswith("opencode"):
+        entry = copy.deepcopy(trace["scenarios"][1])
+        entry["scenario"] = "code-mode"
+        if with_code_mode:
+            for item in entry["requests"]:
+                changed = item["body"]
+                changed["messages"][0]["content"] += "\n" + CATALOG_HEADER
+                changed["tools"].append({"name": "execute"})
+            entry["requests"] = [publish(item["body"], "/fixture") for item in entry["requests"]]
+        else:
+            entry.update(status="unsupported", requests=entry["requests"][:1], tool_call=None)
+        trace["scenarios"].append(entry)
+    return trace
+
+
+def lane_artifact(root, trace, attempt=1, stages=None, comparison=None, diff=None):
+    lane = trace["release"]["lane"]
+    path = root / f"agent-trace-lane-{lane}-{attempt}"
+    path.mkdir(parents=True)
+    for name, data in {
+        "release": trace["release"], "trace": trace,
+        "stages": stages if stages is not None else {"capture": "success", "replay": "success"},
+        "comparison": comparison or {}, "report": {"failures": [], "diff": diff or [], "baseline_version": "1.0.0"},
+    }.items():
+        workflow_support.write_json(path / f"{name}.json", data)
+
+
 class BaselineTests(unittest.TestCase):
-    def test_skip_current_expired_and_wrong_workflow_artifacts(self):
-        def artifact(n, branch="main", expired=False):
-            return {"id": n, "created_at": f"2026-11-{n:02d}", "expired": expired,
-                    "size_in_bytes": 512, "workflow_run": {"id": n, "head_branch": branch}}
+    def test_tagged_baseline_lifecycle_and_idempotent_upload(self):
+        tags = ["v0.5.3", "v0.5.4", "v0.5.5", "v0.99.0-rc.1"]
+        commits = {"v0.5.4": "a" * 40, "v0.5.5": "b" * 40}
+        assets = {}
 
-        artifacts = {"artifacts": [artifact(8), artifact(7, expired=True), artifact(6, branch="other"), artifact(5), artifact(4)]}
+        def github(path, accept=None):
+            if "/releases/tags/" in path:
+                tag = path.rsplit("/", 1)[-1]
+                current = assets.get(tag)
+                return io.BytesIO(json.dumps({"assets": [] if current is None else [{
+                    "id": list(commits).index(tag) + 1, "size": len(current), "state": "uploaded",
+                    "name": workflow_support.BASELINE_ASSET,
+                }]}).encode())
+            self.assertEqual(accept, "application/octet-stream")
+            tag = list(commits)[int(path.rsplit("/", 1)[-1]) - 1]
+            return io.BytesIO(assets[tag])
 
-        def api(path):
-            if "artifacts?" in path:
-                self.assertIn("agent-trace-baseline-pi", path)
-                return artifacts
-            if path.endswith("/5"):
-                return {"path": ".github/workflows/ci.yml", "status": "completed"}
-            self.assertTrue(path.endswith("/4"))
-            # One failed matrix lane must not discard the others' baselines.
-            return {"path": ".github/workflows/agent-traces.yml", "status": "completed", "conclusion": "failure"}
+        def upload(command, check):
+            self.assertTrue(check)
+            self.assertEqual(command[:3], ["gh", "release", "upload"])
+            tag = command[3]
+            self.assertNotIn(tag, assets)
+            assets[tag] = Path(command[4]).read_bytes()
 
-        archive = io.BytesIO()
-        with ZipFile(archive, "w") as zipped:
-            zipped.writestr("trace.json", b'{"baseline":true}')
-        archive.seek(0)
-        with patch.object(workflow_support, "github_json", side_effect=api), patch.object(workflow_support, "github", return_value=archive):
-            self.assertEqual(workflow_support.previous_baseline("pi", "owner/repo", "main", "8"), b'{"baseline":true}')
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}), \
+                patch.object(workflow_support, "github", side_effect=github), \
+                patch.object(workflow_support.subprocess, "run", side_effect=upload) as sender:
+            root = Path(temp)
+            for index, (tag, commit) in enumerate(commits.items(), 1):
+                version = f"{index}.0.0"
+                tag_inputs = root / tag / "lanes"
+                bundle = root / tag / "bundle"
+                for lane in LANES:
+                    lane_artifact(tag_inputs, tagged_trace(lane, version))
+                baseline_tag = workflow_support.select_baseline_tag(tags, tag)
+                comparison, baseline = workflow_support.compare_with_baseline(
+                    tagged_trace("pi", version), baseline_tag, commits.get(baseline_tag, ""))
+                if index == 1:
+                    self.assertEqual((baseline_tag, comparison["status"], baseline), ("v0.5.3", "missing", None))
+                else:
+                    self.assertEqual((baseline_tag, comparison["status"], baseline["release"]["version"]),
+                                     ("v0.5.4", "available", "1.0.0"))
+                workflow_support.assemble_bundle(tag_inputs, bundle, LANES, 1, commit, tag, baseline_tag)
+                destination = root / tag / workflow_support.BASELINE_ASSET
+                workflow_support.publish_baseline(bundle, tag, commit, destination)
+                with ZipFile(destination) as zipped:
+                    metadata = json.loads(zipped.read("manifest.json"))
+                    self.assertEqual((metadata["tag"], metadata["commit"]), (tag, commit))
+                    self.assertEqual(set(metadata["lanes"]), set(LANES))
+                    self.assertEqual(metadata["lanes"]["pi"]["version"], version)
+
+            original = assets["v0.5.5"]
+            workflow_support.publish_baseline(root / "missing", "v0.5.5", commits["v0.5.5"], root / "unused")
+            self.assertEqual(sender.call_count, 2)
+            self.assertEqual(assets["v0.5.5"], original)
+
+            selected = workflow_support.select_baseline_tag(tags)
+            current = tagged_trace("pi", "2.0.0")
+            comparison, baseline = workflow_support.compare_with_baseline(current, selected, commits[selected])
+            self.assertEqual((selected, comparison["status"], compare(current, baseline)), ("v0.5.5", "available", []))
+            comparison, _ = workflow_support.compare_with_baseline(current, selected, "c" * 40)
+            self.assertEqual(comparison["status"], "unreadable")
+            current["config_revision"] += 1
+            comparison, baseline = workflow_support.compare_with_baseline(current, selected, commits[selected])
+            self.assertEqual((comparison["status"], baseline), ("incompatible", None))
+
+    def test_transport_failure_is_reported(self):
+        error = HTTPError("https://example.test", 403, "forbidden", {}, None)
+        with patch.object(workflow_support, "release_asset", side_effect=error):
+            comparison, baseline = workflow_support.compare_with_baseline(tagged_trace("pi", "1.0.0"), "v0.5.4", "sha")
+        self.assertIsNone(baseline)
+        self.assertEqual(comparison["status"], "unreadable")
+        self.assertIn("403", comparison["reason"])
+
+    def test_summary_shows_concrete_changes_and_partial_bundle(self):
+        before = tagged_trace("opencode-v2", "1.0.0", with_code_mode=True)
+        after = tagged_trace("opencode-v2", "2.0.0", with_code_mode=False)
+        changed = after["scenarios"][0]["requests"][0]["body"]
+        changed["tools"][0]["function"]["name"] = "read_file"
+        after["scenarios"][0]["requests"][0] = publish(changed, "/fixture")
+        difference = compare(after, before)
+        comparison = {"tag": "v0.5.4", "status": "available"}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            inputs, output = root / "lanes", root / "bundle"
+            lane_artifact(inputs, before, 1)
+            lane_artifact(inputs, after, 2, comparison=comparison, diff=difference)
+            lane_artifact(inputs, tagged_trace("pi", "1.0.0"), 1, comparison=comparison)
+            lane_artifact(inputs, tagged_trace("gemini", "1.0.0"), 2,
+                          stages={"capture": "failure", "replay": "skipped"})
+            lane_artifact(inputs, tagged_trace("codex", "1.0.0"), 2,
+                          comparison={"status": "unreadable", "reason": "Baseline read failed (HTTP 403)."})
+            lane_artifact(inputs, tagged_trace("claude", "1.0.0"), 2,
+                          comparison={"status": "incompatible", "reason": "Capture configurations differ."})
+            workflow_support.assemble_bundle(inputs, output, LANES, 2, "sha", "v0.5.5", "v0.5.4")
+            summary = (output / "summary.md").read_text()
+            for expected in ("capability-changed", "<code>unsupported</code>", "requests-removed",
+                             "<code>2</code> | <code>1</code>", "/tools/0/function/name",
+                             "<code>read</code> | <code>read_file</code>", "Failed stages · capture",
+                             "Artifact from run attempt 1", "No lane artifact available.",
+                             "Baseline read failed (HTTP 403).", "Capture configurations differ.",
+                             "No changes in the captured request evidence."):
+                self.assertIn(expected, summary)
+            self.assertNotIn("template hits", summary)
+            self.assertNotIn("tool aliases", summary)
+            self.assertTrue((output / "opencode-v2" / "trace.json").is_file())
+            with self.assertRaisesRegex(ValueError, "successful capture and replay"):
+                workflow_support.build_baseline(output, "v0.5.5", "sha", root / "refused.zip")
 
 
 if __name__ == "__main__":

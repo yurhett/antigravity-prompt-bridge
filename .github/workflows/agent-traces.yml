@@ -3,6 +3,16 @@ name: Agent traces
 on:
   schedule:
     - cron: '23 1 * * *'
+  workflow_call:
+    inputs:
+      lane:
+        description: Agent release channel
+        type: string
+        default: all
+      release_tag:
+        description: Stable plugin tag being released
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       lane:
@@ -20,6 +30,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare:
+    name: Select tagged trace baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      baseline_tag: ${{ steps.baseline.outputs.tag }}
+      baseline_commit: ${{ steps.baseline.outputs.commit }}
+      lanes: ${{ steps.baseline.outputs.lanes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: baseline
+        env:
+          TRACE_LANE: ${{ inputs.lane || 'all' }}
+          TRACE_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: python3 scripts/agent_traces/workflow_support.py prepare --lane "$TRACE_LANE" --release-tag "$TRACE_RELEASE_TAG"
+
   bridge:
     name: Build bridge for replay
     runs-on: ubuntu-24.04
@@ -44,16 +73,15 @@ jobs:
 
   trace:
     name: Trace ${{ matrix.lane }}
-    needs: bridge
+    needs: [prepare, bridge]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        lane: ${{ fromJSON((!inputs.lane || inputs.lane == 'all') && '["opencode-v1","opencode-v2","pi","codex","gemini","claude"]' || format('["{0}"]', inputs.lane)) }}
+        lane: ${{ fromJSON(needs.prepare.outputs.lanes) }}
     env:
       TRACE_LANE: ${{ matrix.lane }}
-      TRACE_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       PYTHONDONTWRITEBYTECODE: 1
     steps:
       - uses: actions/checkout@v4
@@ -103,31 +131,26 @@ jobs:
           exit "$status"
 
       - id: baseline
-        name: Retrieve the previous successful baseline
+        name: Retrieve the selected tag baseline
         if: steps.capture.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/agent_traces/workflow_support.py baseline "$RUNNER_TEMP" "$TRACE_LANE"
+          BASELINE_TAG: ${{ needs.prepare.outputs.baseline_tag }}
+          BASELINE_COMMIT: ${{ needs.prepare.outputs.baseline_commit }}
+        run: |
+          python3 scripts/agent_traces/workflow_support.py baseline trace-results \
+            "$RUNNER_TEMP/baseline.json" "$BASELINE_TAG" "$BASELINE_COMMIT"
 
       - id: replay
-        name: Replay the capture and generate review candidates
-        if: steps.baseline.outcome == 'success'
+        name: Replay the capture and compare evidence
+        if: steps.capture.outcome == 'success'
         continue-on-error: true
         run: |
           python3 scripts/agent_traces/report.py trace-results/trace.json trace-abi/bridge.so \
             trace-results/report.json --baseline "$RUNNER_TEMP/baseline.json"
 
-      - name: Save baseline after successful replay
-        if: steps.replay.outcome == 'success' && github.ref_name == env.TRACE_DEFAULT_BRANCH
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-trace-baseline-${{ matrix.lane }}
-          path: trace-results/trace.json
-          retention-days: 30
-          overwrite: true
-
-      - name: Summarize lane
+      - name: Record lane status
         if: always()
         env:
           RESOLVE_STATUS: ${{ steps.resolve.outcome }}
@@ -137,22 +160,74 @@ jobs:
           BASELINE_STATUS: ${{ steps.baseline.outcome }}
           REPLAY_STATUS: ${{ steps.replay.outcome }}
         run: |
-          mkdir -p trace-results
-          python3 scripts/agent_traces/workflow_support.py summary trace-results "$TRACE_LANE" \
-            "bridge=$BRIDGE_STATUS" "resolve=$RESOLVE_STATUS" "install=$INSTALL_STATUS" "capture=$CAPTURE_STATUS" \
-            "baseline=$BASELINE_STATUS" "replay=$REPLAY_STATUS" > trace-results/summary.md
-          cat trace-results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/agent_traces/workflow_support.py stages trace-results \
+            "bridge=$BRIDGE_STATUS" "resolve=$RESOLVE_STATUS" "install=$INSTALL_STATUS" \
+            "capture=$CAPTURE_STATUS" "baseline=$BASELINE_STATUS" "replay=$REPLAY_STATUS"
 
-      - name: Save capture and review report
+      - name: Save lane capture and review report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agent-trace-${{ matrix.lane }}-${{ github.run_attempt }}
+          name: agent-trace-lane-${{ matrix.lane }}-${{ github.run_attempt }}
           path: trace-results/
           retention-days: 30
+          if-no-files-found: error
 
       - name: Reflect lane failures in workflow status
         if: always()
         env:
           REPLAY_STATUS: ${{ steps.replay.outcome }}
         run: test "$REPLAY_STATUS" = success
+
+  summary:
+    name: Publish combined traces and comparison
+    needs: [prepare, bridge, trace]
+    if: always() && !cancelled()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: agent-trace-lane-*
+          path: trace-lanes
+      - name: Assemble the trace download and summary
+        env:
+          BASELINE_TAG: ${{ needs.prepare.outputs.baseline_tag }}
+          TRACE_RELEASE_TAG: ${{ inputs.release_tag }}
+          TRACE_LANE: ${{ inputs.lane || 'all' }}
+          TRACE_LANES: ${{ needs.prepare.outputs.lanes }}
+        run: |
+          if [ -n "$TRACE_LANES" ]; then
+            mapfile -t lanes < <(jq -r '.[]' <<< "$TRACE_LANES")
+          elif [ "$TRACE_LANE" = all ]; then
+            lanes=(opencode-v1 opencode-v2 pi codex gemini claude)
+          else
+            lanes=("$TRACE_LANE")
+          fi
+          python3 scripts/agent_traces/workflow_support.py bundle trace-lanes trace-bundle \
+            --lanes "${lanes[@]}" --attempt "$GITHUB_RUN_ATTEMPT" --commit "$(git rev-parse HEAD)" \
+            --release-tag "$TRACE_RELEASE_TAG" --baseline-tag "$BASELINE_TAG"
+      - id: bundle_asset
+        name: Upload all Agent traces
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-traces-all
+          path: trace-bundle/
+          retention-days: 30
+          overwrite: true
+          if-no-files-found: error
+      - name: Show changes and download link
+        if: always()
+        env:
+          BUNDLE_URL: ${{ steps.bundle_asset.outputs.artifact-url }}
+        run: |
+          if [ -n "$BUNDLE_URL" ]; then
+            printf '[Download agent-traces-all](%s)\n\n' "$BUNDLE_URL" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f trace-bundle/summary.md ]; then
+            cat trace-bundle/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi

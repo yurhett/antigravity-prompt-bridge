@@ -80,3 +80,38 @@ jobs:
             dist/checksums.txt
           fail_on_unmatched_files: true
           make_latest: true
+
+  trace_for_release:
+    name: Capture Agent traces for the release tag
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/agent-traces.yml
+    with:
+      release_tag: ${{ github.ref_name }}
+
+  publish_trace_baseline:
+    name: Attach the immutable Agent trace baseline
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [release, trace_for_release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent-traces-all
+          path: trace-bundle
+      - name: Publish tagged traces
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/agent_traces/workflow_support.py publish trace-bundle "$GITHUB_REF_NAME" \
+            "$(git rev-parse HEAD)" "$RUNNER_TEMP/agent-traces-baseline.zip"

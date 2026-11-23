@@ -161,15 +161,20 @@ def scenario_key(trace, scenario):
 def compare(trace, baseline):
     previous = {scenario_key(baseline, s): s for s in baseline["scenarios"]} if baseline else {}
     output = []
+    old_version = baseline["release"]["version"] if baseline else None
     for scenario in trace["scenarios"]:
         old = previous.get(scenario_key(trace, scenario))
         if old is None:
             output.append({"scenario": scenario["scenario"], "status": "baseline-created"})
         elif old["status"] != scenario["status"]:
             output.append({"scenario": scenario["scenario"], "status": "capability-changed",
-                           "before": old["status"], "after": scenario["status"]})
+                           "old_version": old_version, "before": old["status"], "after": scenario["status"]})
         before = old["requests"] if old else []
         for index, current in enumerate(scenario["requests"]):
+            if old is not None and index >= len(before):
+                output.append({"scenario": scenario["scenario"], "round": index + 1, "status": "request-added",
+                               "old_version": old_version, "before": "absent", "after": "captured"})
+                continue
             current_fields = evidence(current["body"])
             old_fields = evidence(before[index]["body"]) if index < len(before) else {}
             for path in sorted(current_fields.keys() | old_fields.keys()):
@@ -186,15 +191,13 @@ def compare(trace, baseline):
                         continue
                     output.append({
                         "scenario": scenario["scenario"], "round": index + 1, "path": path,
-                        "old_version": baseline["release"]["version"] if old else None,
+                        "old_version": old_version if old else None,
                         "new_version": trace["release"]["version"], "request_sha256": current["sha256"],
                         "before": snippet(left), "after": snippet(right), "candidates": candidates,
                     })
-            if old and index >= len(before):
-                output.append({"scenario": scenario["scenario"], "round": index + 1, "status": "request-added"})
-        if old and len(before) > len(scenario["requests"]):
-            output.append({"scenario": scenario["scenario"], "status": "requests-removed",
-                           "count": len(before) - len(scenario["requests"])})
+        if old is not None and len(before) > len(scenario["requests"]):
+            output.append({"scenario": scenario["scenario"], "status": "requests-removed", "old_version": old_version,
+                           "before": len(before), "after": len(scenario["requests"])})
     return output
 
 

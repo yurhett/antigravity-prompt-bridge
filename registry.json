@@ -6,7 +6,7 @@
       "name": "antigravity-prompt-bridge",
       "description": "仅在系统提示词与原生工具名称白名单字段中处理 Agent 关键词，保留参数、工具结果和文件内容。",
       "author": "yurhett",
-      "version": "0.5.3",
+      "version": "0.5.4",
       "repository": "https://github.com/yurhett/antigravity-prompt-bridge",
       "homepage": "https://github.com/yurhett/antigravity-prompt-bridge",
       "license": "MIT",

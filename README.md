@@ -5,7 +5,7 @@
 
 [English](README.en.md) · [配置示例](examples/config.yaml) · [来源与许可](NOTICE.md)
 
-CLIProxyAPI（CPA）原生 ABI v1 插件，为 `agy` 和原生 `antigravity` 提供提示词处理。当前版本 **v0.5.3**，发布 Linux amd64 动态库。
+CLIProxyAPI（CPA）原生 ABI v1 插件，为 `agy` 和原生 `antigravity` 提供提示词处理。当前版本 **v0.5.4**，发布 Linux amd64 动态库。
 
 仓库名、运行时插件 ID、商店名称、配置键和发布包前缀统一为 **`antigravity-prompt-bridge`**。
 
@@ -64,16 +64,16 @@ v0.3.1 起使用统一名称 `antigravity-prompt-bridge`。从本项目 v0.3.0 �
 
 ### 手动安装
 
-1. 从 [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases) 下载 `antigravity-prompt-bridge_0.5.3_linux_amd64.zip` 和 `checksums.txt`。
+1. 从 [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases) 下载 `antigravity-prompt-bridge_0.5.4_linux_amd64.zip` 和 `checksums.txt`。
 2. 在下载目录验证并解压：
 
    ```sh
    sha256sum -c checksums.txt
-   unzip antigravity-prompt-bridge_0.5.3_linux_amd64.zip
+   unzip antigravity-prompt-bridge_0.5.4_linux_amd64.zip
    ```
 
-3. 将解压出的 `antigravity-prompt-bridge.so` 安装到 CPA 插件发现目录，建议命名为 `antigravity-prompt-bridge-v0.5.3.so`。旧版本备份放到发现目录以外。
-4. 保存 CPA 插件配置以触发热加载，并确认已加载版本为 `0.5.3`。
+3. 将解压出的 `antigravity-prompt-bridge.so` 安装到 CPA 插件发现目录，建议命名为 `antigravity-prompt-bridge-v0.5.4.so`。旧版本备份放到发现目录以外。
+4. 保存 CPA 插件配置以触发热加载，并确认已加载版本为 `0.5.4`。
 
 要求 Linux x86-64、GNU libc **2.34 或更新版本**，以及支持原生 ABI v1、请求拦截器和 `host.auth.get_runtime` 的 CPA。Alpine/musl 不适用本发布包。当前依赖 CPA SDK `v7.3.2`。
 
@@ -128,9 +128,15 @@ plugins:
 
 GitHub Actions 的 **Agent traces** 工作流每天马来西亚时间 09:23 运行，也可通过 **Run workflow** 选择单条发行线。它跟踪 OpenCode V1、OpenCode V2、Pi、Codex、Gemini CLI 和 Claude Code 的稳定版。官方客户端在临时 Git 项目中连接隔离的本地模型端点，发出实际的文本及工具请求。OpenCode 另外探测 Code Mode，以实际目录、`execute` 声明和读取回合为证据。[工作流](.github/workflows/agent-traces.yml)
 
-每条发行线的 Actions artifact 保留 30 天。`release.json` 记录准确版本和来源，`trace.json` 保存脱敏后的请求及哈希，`report.json` 包含 ABI 回放、与上一份同配置成功采集的差异及候选筛选规则。识别不到的 Agent、残留品牌和仍需确认的工具引用会出现在报告里。候选规则通过代码审查纳入运行时，失败的发行线沿用它上一份成功基线。
+在运行页 Summary 查看相对发布基线的具体差异，并下载 `agent-traces-all`。汇总包保留 30 天，包含各发行线的实际版本 `release.json`、脱敏请求及哈希 `trace.json`、ABI 回放与差异 `report.json`，以及采集失败时可用的诊断信息。规则候选通过代码审查纳入运行时。
+
+从 `v0.5.4` 起，发布 tag 会自动采集六条发行线。采集和回放全部通过后，长期基线 `agent-traces-baseline.zip` 附在该 tag 的 GitHub Release。手动和定时运行比较最新稳定 tag，发布运行比较前一个稳定 tag。缺少基线、读取失败或采集配置不兼容时会在 Summary 标出。安装包继续独立发布。
 
 本地端点返回固定响应，验证客户端实际发送的内容、工具回合和别名恢复。真实模型对提示词改写的理解效果需要单独对照。
+
+### 代码结构
+
+根目录 `main.go` 提供 C ABI 入口。`internal/plugin` 管理 CPA 拦截器、配置快照和请求状态，`internal/config` 定义配置与发布版本。协议字段和桥接布局在 `internal/protocol`。Agent 识别、模板、工具别名及 OpenCode Code Mode 适配在 `internal/rewrite`，新增 Agent 规则从该包的注册表接入。
 
 ### 插件构建
 
