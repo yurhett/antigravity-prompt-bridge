@@ -122,9 +122,14 @@ class CaptureTests(unittest.TestCase):
                           "- read (1 tool)\n  - tools.read({\n  /** File to read */\n  path: string,\n}): Promise<string>"}],
             "tools": [{"type": "function", "function": {"name": "execute"}}],
         }
+        self.assertFalse(code_mode(body))
+        schema = {"type": "object", "properties": {"code": {"type": "integer"}}}
+        body["tools"].append({"type": "function", "function": {"name": "execute", "parameters": schema}})
+        self.assertFalse(code_mode(body))
+        schema["properties"]["code"]["type"] = "string"
         self.assertTrue(code_mode(body))
         tool = trace_tool(body, Path("/trace/project/trace-example.txt"), "code-mode")
-        self.assertEqual(tool["declaration"], "/tools/0/function")
+        self.assertEqual(tool["declaration"], "/tools/1/function")
         self.assertEqual(tool["arguments"]["code"], 'return await tools.read({ path: "/trace/project/trace-example.txt" });')
 
     def test_auxiliary_model_request_does_not_consume_tool_turn(self):

@@ -11,6 +11,7 @@ RESULT_TOKEN = "TRACE_FIXTURE_CONTENT_74BE"
 ANSWER = "TRACE_DONE"
 CALL_ID = "trace_tool_call"
 USAGE = {"input_tokens": 10, "output_tokens": 5}
+TOOL_SCHEMA_KEYS = ("parameters", "input_schema", "parametersJsonSchema", "parameters_json_schema")
 
 
 def system_fields(body):
@@ -57,6 +58,15 @@ def declarations(body):
         yield from walk(body.get(key, []) or [], "/" + key)
 
 
+def tool_schema(tool):
+    return next((tool[key] for key in TOOL_SCHEMA_KEYS if isinstance(tool.get(key), dict)), {})
+
+
+def tool_properties(schema):
+    properties = schema.get("properties")
+    return properties if isinstance(properties, dict) else {}
+
+
 def has_fixture_result(protocol, body):
     if protocol == "chat":
         results = [message.get("content") for message in body.get("messages", []) if message.get("role") == "tool"]
@@ -77,13 +87,23 @@ READ_PATH_KEY = re.compile(r"\b(filePath|file_path|path|filename|fileName|file)[
 FENCE = re.compile(r"(?ms)^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[ \t]*$")
 
 
+def code_mode_executors(body):
+    for path, _, tool in declarations(body):
+        if tool["name"] != "execute":
+            continue
+        schema = tool_schema(tool)
+        code = tool_properties(schema).get("code")
+        if (str(schema.get("type", "")).lower() == "object" and isinstance(code, dict)
+                and str(code.get("type", "")).lower() == "string"):
+            yield path
+
+
 # Code Mode is recognized by structure, as in the Go adapter: an `execute`
-# tool plus catalog entries such as "  - tools.opencode.read(". Catalog
+# tool with a string `code` parameter plus catalog entries such as
+# "  - tools.opencode.read(". Catalog
 # headings change between OpenCode releases and are not a condition.
 def code_mode(body):
-    return any(tool["name"] == "execute" for _, _, tool in declarations(body)) and any(
-        True for _ in catalog_tools(body)
-    )
+    return next(code_mode_executors(body), None) is not None and next(catalog_tools(body), None) is not None
 
 
 def catalog_tools(body):
@@ -96,11 +116,13 @@ def catalog_tools(body):
 
 def trace_tool(body, fixture, mode):
     if mode == "code-mode":
+        declaration = next(code_mode_executors(body), None)
+        if declaration is None:
+            raise ValueError("Code Mode execute tool has no string code parameter")
         for path, signature in catalog_tools(body):
             key = READ_PATH_KEY.search(signature)
             if path.rsplit(".", 1)[-1] in ("read", "read_file") and key:
                 code = f"return await {path}({{ {key[1]}: {json.dumps(str(fixture))} }});"
-                declaration = next(at for at, _, tool in declarations(body) if tool["name"] == "execute")
                 return {"name": "execute", "arguments": {"code": code}, "declaration": declaration}
         raise ValueError("Code Mode catalog contains no supported file-read member")
 
@@ -108,8 +130,8 @@ def trace_tool(body, fixture, mode):
         name = tool["name"]
         if name.lower() not in ("read", "read_file", "readfile", "exec_command", "shell", "shell_command"):
             continue
-        schema = next((tool[key] for key in ("parameters", "input_schema", "parametersJsonSchema", "parameters_json_schema") if key in tool), {})
-        props = schema.get("properties", {})
+        schema = tool_schema(tool)
+        props = tool_properties(schema)
         if name.lower() in ("read", "read_file", "readfile"):
             key = next((key for key in ("filePath", "file_path", "path", "filename", "fileName", "file") if key in props), None)
             if not key:

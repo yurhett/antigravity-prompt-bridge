@@ -12,7 +12,10 @@ import sys
 from pathlib import Path
 
 from capture import LANES, SCENARIOS, canonical
-from protocols import FORMATS, catalog_tools, code_mode, declarations, has_fixture_result, response, sse, system_fields
+from protocols import (
+    FORMATS, TOOL_SCHEMA_KEYS, catalog_tools, code_mode, declarations, has_fixture_result,
+    response, sse, system_fields, tool_properties, tool_schema,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from abi_support import NATIVE_IDENTITY, Plugin
@@ -32,7 +35,6 @@ SUBSCHEMA_KEYS = {
     "additionalProperties", "contains", "propertyNames", "unevaluatedItems",
     "unevaluatedProperties", "not", "if", "then", "else",
 }
-SCHEMA_KEYS = {"parameters", "input_schema", "parametersJsonSchema", "parameters_json_schema"}
 FAMILIES = {
     "opencode-v1": "OpenCode", "opencode-v2": "OpenCode", "codex": "Codex", "pi": "Pi",
     "gemini": "Gemini CLI", "claude": "Claude Code",
@@ -49,8 +51,7 @@ def fingerprint_feature(feature, body):
             continue
         if not feature.get("parameter"):
             return True
-        schema = next((tool[key] for key in SCHEMA_KEYS if isinstance(tool.get(key), dict)), {})
-        if feature["parameter"] in schema.get("properties", {}):
+        if feature["parameter"] in tool_properties(tool_schema(tool)):
             return True
     return False
 
@@ -58,11 +59,12 @@ def fingerprint_feature(feature, body):
 def fingerprint_failures(trace):
     """A lane must carry every feature of its own Agent and no other Agent's full fingerprint."""
     family = FAMILIES[trace["release"]["lane"]]
+    fingerprints = json.loads(FINGERPRINTS.read_text())
     failures = []
     for scenario in trace["scenarios"]:
         for i, request in enumerate(scenario["requests"]):
             body = request["body"]
-            for fingerprint in json.loads(FINGERPRINTS.read_text()):
+            for fingerprint in fingerprints:
                 hits = [f["id"] for f in fingerprint["features"] if fingerprint_feature(f, body)]
                 if fingerprint["family"] == family and len(hits) != len(fingerprint["features"]):
                     missing = [f["id"] for f in fingerprint["features"] if f["id"] not in hits]
@@ -90,8 +92,9 @@ def tool_contract(tool):
         return result
 
     result = {key: value for key, value in tool.items() if key not in ("name", "description")}
-    for key in SCHEMA_KEYS & result.keys():
-        result[key] = schema(result[key])
+    for key in TOOL_SCHEMA_KEYS:
+        if key in result:
+            result[key] = schema(result[key])
     return result
 
 
@@ -119,7 +122,7 @@ def evidence(body):
         if isinstance(tool.get("description"), str):
             fields[path + "/description"] = tool["description"]
         for key, value in tool_contract(tool).items():
-            if key in SCHEMA_KEYS:
+            if key in TOOL_SCHEMA_KEYS:
                 fields.update(descriptions(tool[key], f"{path}/{key}"))
             fields[f"{path}/{key}"] = json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2)
     return fields
