@@ -10,7 +10,7 @@ import (
 
 const (
 	PluginName       = "antigravity-prompt-bridge"
-	PluginVersion    = "0.5.4"
+	PluginVersion    = "0.5.5"
 	PluginRepository = "https://github.com/yurhett/antigravity-prompt-bridge"
 )
 
@@ -18,6 +18,27 @@ type Mode string
 
 const (
 	ModeRewrite Mode = "rewrite"
+)
+
+// GuardMode decides what happens when an identified Agent's request misses
+// a rule. Gaps leak agent features; drift is already handled by a fallback
+// rule (identity normalization) and only means a recorded template is stale.
+type GuardMode string
+
+const (
+	GuardOff    GuardMode = "off"    // no coverage handling
+	GuardReport GuardMode = "report" // log every miss, forward
+	GuardReject GuardMode = "reject" // refuse gaps, log drift
+	GuardStrict GuardMode = "strict" // refuse gaps and drift (development)
+)
+
+// UnidentifiedMode decides what happens when agent_alias is on and no Agent
+// is identified. With agent_alias off every request takes the legacy path.
+type UnidentifiedMode string
+
+const (
+	UnidentifiedLegacy UnidentifiedMode = "legacy" // legacy keyword or heuristic rewrite
+	UnidentifiedReject UnidentifiedMode = "reject" // refuse known Agent fingerprints, else add the native identity
 )
 
 type Mapping struct {
@@ -34,11 +55,13 @@ type Config struct {
 	EnableAntigravity             bool
 	AntigravityBridgeSystemPrompt bool
 	AgentAlias                    bool
+	BrandGuard                    GuardMode
+	Unidentified                  UnidentifiedMode
 	Audit                         bool
 }
 
 func Default() Config {
-	return Config{Mode: ModeRewrite, UseDefaultKeywords: true, EnableAgy: true, EnableAntigravity: true, AntigravityBridgeSystemPrompt: true, AgentAlias: true}
+	return Config{Mode: ModeRewrite, UseDefaultKeywords: true, EnableAgy: true, EnableAntigravity: true, AntigravityBridgeSystemPrompt: true, AgentAlias: true, BrandGuard: GuardReject, Unidentified: UnidentifiedReject}
 }
 
 func Parse(raw []byte) (Config, error) {
@@ -84,6 +107,16 @@ func Parse(raw []byte) (Config, error) {
 			return Config{}, fmt.Errorf("mode must be rewrite")
 		}
 	}
+	guard, err := parseEnum(values, "brand_guard", string(cfg.BrandGuard), "off", "report", "reject", "strict")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.BrandGuard = GuardMode(guard)
+	unidentified, err := parseEnum(values, "unidentified", string(cfg.Unidentified), "legacy", "reject")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Unidentified = UnidentifiedMode(unidentified)
 	if value, exists := values["use_default_keywords"]; exists {
 		boolValue, ok := value.(bool)
 		if !ok {
@@ -99,6 +132,25 @@ func Parse(raw []byte) (Config, error) {
 		cfg.CustomMappings = mappings
 	}
 	return cfg, nil
+}
+
+func parseEnum(values map[string]any, key, fallback string, allowed ...string) (string, error) {
+	value, exists := values[key]
+	if !exists {
+		return fallback, nil
+	}
+	text, ok := value.(string)
+	if off, isBool := value.(bool); isBool && !off {
+		// A YAML 1.1 writer may turn a bare `off` into false.
+		text, ok = "off", true
+	}
+	text = strings.ToLower(strings.TrimSpace(text))
+	for _, candidate := range allowed {
+		if ok && text == candidate {
+			return text, nil
+		}
+	}
+	return "", fmt.Errorf("%s must be one of %s", key, strings.Join(allowed, ", "))
 }
 
 func parseCustomMappings(value any) ([]Mapping, error) {

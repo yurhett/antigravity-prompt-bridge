@@ -10,6 +10,8 @@ plugins:
       antigravity_bridge_system_prompt: true
       agent_alias: true
       heuristic_identity: true
+      brand_guard: reject
+      unidentified: reject
       use_default_keywords: true
       custom_mappings: {}
       audit: false

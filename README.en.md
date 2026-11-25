@@ -1,11 +1,83 @@
-# antigravity-prompt-bridge v0.5.4
+# antigravity-prompt-bridge
 
-Independent CPA native ABI v1 plugin for Linux amd64. Filters caller system/developer instructions for the selected `agy` or `antigravity` credential. Provider selection uses `selected_auth_index` and read-only `host.auth.get_runtime`; model prefixes and client protocol do not determine scope. Unknown credentials pass through.
+[![Release](https://img.shields.io/github/v/release/yurhett/antigravity-prompt-bridge)](https://github.com/yurhett/antigravity-prompt-bridge/releases/latest)
 
-Both provider switches default to true and can be disabled independently. `heuristic_identity` defaults to false for compatibility; the recommended configuration enables it explicitly:
+[中文](README.md) · [Example config](examples/config.yaml) · [Changelog](CHANGELOG.md) · [Attribution & license](NOTICE.md)
+
+A CLIProxyAPI (CPA) native ABI v1 plugin that processes prompts for `agy` and native `antigravity`.
+
+- Latest public release is **v0.5.4** (Linux amd64 shared library). The `brand_guard` and `unidentified` settings below apply to v0.5.5.
+- Repository, plugin ID, store name, configuration key and asset prefix all use **`antigravity-prompt-bridge`**
+
+## Contents
+
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [How it works](#how-it-works)
+- [Upgrade and rollback](#upgrade-and-rollback)
+- [Known limits](#known-limits)
+- [License](#license)
+
+## Features
+
+| Feature | Description |
+|---|---|
+| Agent prompt rewriting | Identifies the agent from its self-description, applies fragment templates, then cleans up residual brand names by whole word; optional whole-sentence identity normalization |
+| Native prompt bridge | Native `antigravity` only: rewrites first, then moves caller system/developer prompts into a `<USER_REQUEST>` wrapper in a user message |
+| Independent switches | `agy` and `antigravity` can be disabled separately; the bridge switch is on by default and does not change how `agy` is processed |
+| Protocol support | Chat Completions, Responses, Anthropic Messages, Gemini and the Antigravity `request` envelope; tool names are rewritten reversibly |
+
+## Quick start
+
+1. Add the plugin source to your CPA main configuration:
+
+   ```yaml
+   plugins:
+     enabled: true
+     store-sources:
+       - https://raw.githubusercontent.com/yurhett/antigravity-prompt-bridge/main/registry.json
+   ```
+
+2. Refresh the store and install **antigravity-prompt-bridge** (ID: `antigravity-prompt-bridge`).
+3. Merge the [recommended configuration](#recommended-configuration) and save to trigger hot reload.
+4. Disable older filters with the same function (such as `agy-coding-filter` or `antigravity-coding-filter`) so requests are not rewritten twice.
+
+## Installation
+
+### Requirements
+
+- Linux x86-64, GNU libc **2.34+** (Alpine/musl not supported)
+- A CPA build that supports native ABI v1, request interceptors and `host.auth.get_runtime`
+- Built against CPA SDK `v7.3.2`
+
+### Option 1: CPA custom plugin source (recommended)
+
+See [Quick start](#quick-start). Use this project's source so the repository URL and plugin ID match.
+
+### Option 2: Manual installation
+
+1. Download `antigravity-prompt-bridge_0.5.4_linux_amd64.zip` and `checksums.txt` from [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases).
+2. Verify and extract:
+
+   ```sh
+   sha256sum -c checksums.txt
+   unzip antigravity-prompt-bridge_0.5.4_linux_amd64.zip
+   ```
+
+3. Place `antigravity-prompt-bridge.so` in the CPA plugin discovery directory, preferably named `antigravity-prompt-bridge-v0.5.4.so`. Keep backups of older versions outside the discovery directory.
+4. Save the plugin configuration to trigger hot reload, and confirm the loaded version is `0.5.4`.
+
+## Configuration
+
+### Recommended configuration
+
+Merge into your existing `plugins.configs`, keeping other plugins' settings:
 
 ```yaml
 plugins:
+  enabled: true
   configs:
     antigravity-prompt-bridge:
       enabled: true
@@ -16,63 +88,155 @@ plugins:
       antigravity_bridge_system_prompt: true
       agent_alias: true
       heuristic_identity: true
+      brand_guard: reject
+      unidentified: reject
       use_default_keywords: true
-      custom_mappings: {} # heuristic-only
+      custom_mappings: {}
       audit: false
 ```
 
-The recommended configuration leaves custom mappings empty. Disable the legacy antigravity-coding-filter to avoid processing requests twice. Supported fragment templates and their sources are recorded in `internal/rewrite/assets/agent-prompt-templates.json`. Templates and heuristic identity normalization can use this verified native sentence:
+### Options
+
+| Field | Default | Description |
+|---|---|---|
+| `mode` | `rewrite` | Only `rewrite` is supported |
+| `enable_agy` | `true` | Process requests whose selected credential is agy |
+| `enable_antigravity` | `true` | Process requests whose selected credential is native Antigravity |
+| `antigravity_bridge_system_prompt` | `true` | Native Antigravity: rewrite, then relocate; does not affect agy. Turn off to keep the native system-field placement |
+| `agent_alias` | `true` | For identified agents, enables the standard identity sentence, templates, whole-word brand cleanup and tool aliases. Unidentified requests follow `unidentified`; when off, every request takes the legacy path |
+| `heuristic_identity` | `false` (recommended on) | Heuristic whole-sentence identity normalization for unidentified requests; identified agents are always normalized. When off, the legacy path uses keyword replacement |
+| `brand_guard` | `reject` | What happens when an identified agent misses an expected rule: `off` / `report` / `reject` / `strict`, see below |
+| `unidentified` | `reject` | Policy when no agent is identified: `reject` / `legacy`, see below |
+| `use_default_keywords` | `true` | Default legacy keyword presets and heuristic identity cues |
+| `custom_mappings` | `{}` | Explicit system-text mappings; take precedence over other rules |
+| `audit` | `false` | Logs request IDs, body hashes, agent, template hits, fixed residuals and protected residuals; prompt text is never logged |
+
+## How it works
+
+### Scope
+
+Whether a request is processed depends on the actual provider looked up from `selected_auth_index`, not on the model name. Requests the plugin executes itself without CPA credential scheduling have no such index and pass through unchanged; bare model names may be picked up by other plugins along existing routes.
+
+Rewriting covers system/developer messages, Responses `instructions` and Gemini `systemInstruction`. Heuristics protect the following and leave them unchanged:
+
+- Quoted examples, Markdown quotes and links
+- Code, paths and URLs
+- Recognized XML project, example and untrusted-content blocks
+
+Separate behavioral clauses are retained; ambiguous embedded restrictions are skipped. Explicit `custom_mappings` remain authoritative within the existing mapping protection rules. Supported fragment templates and their sources are recorded in `internal/rewrite/assets/agent-prompt-templates.json`.
+
+### Bridge layout
+
+Identity sentence:
 
 > You are Antigravity, a powerful agentic AI assistant designed by the Google Deepmind team.
 
-`heuristic_identity` controls whole-sentence identity normalization for unidentified requests; an identified agent's self-introduction is always replaced with the native Antigravity identity sentence. In the legacy path, turning it off enables keyword rewriting according to `use_default_keywords`. Identified agents continue to use templates and whole-word cleanup while `agent_alias` is enabled. Whole-word cleanup skips lowercase ambiguous names used as ordinary nouns (`move the cursor`, `a goose`, `your AI copilot`, `cascade of errors`). The brand catalogue records each family's `vendors`; only attribution phrases such as `built/created/developed by X`, `a product of X`, `X's official CLI`, `(formerly X)` and `由 X 开发` are credited to the Google Deepmind team or removed, while functional references such as `Anthropic API` or `Microsoft content policies` are kept. Only `rewrite` mode is supported.
-
-Scope covers system/developer messages, Responses `instructions`, and Gemini `systemInstruction`. Heuristics protect quoted examples, Markdown quotes/links, code, paths/URLs, and recognized XML project/example/untrusted blocks. Separate behavioral clauses are retained; ambiguous embedded restrictions are skipped. Recognition is primarily English with limited Chinese support and cannot match every possible identity formulation. Explicit custom mappings remain authoritative within the existing mapping protection rules.
-
-## Native Antigravity prompt bridge
-
-`antigravity_bridge_system_prompt` defaults to **true** and applies only to the selected native `antigravity` provider. Identity rewriting runs first. The processed system/developer text then moves into a new user message wrapped in `<USER_REQUEST>`, with `--- message N role=system/developer ---` text labels. The actual system field becomes the verified original Antigravity `<identity>` block. This follows the observed agy placement while retaining native API tool schemas and conversation history. It does not import agy's CLI-specific filesystem, tools or permission instructions.
-
-OpenAI Chat Completions, Responses, Anthropic Messages and Gemini requests (including the Antigravity `request` envelope and snake-case system field) are supported. Existing user/assistant/tool messages, tool definitions, tool results, generation settings and metadata remain unchanged; the bridge inserts one user message before history and replaces/removes only system/developer prompt fields. Mixed non-text system content is not relocated, to avoid losing unsupported blocks. Repeated processing does not duplicate the wrapper.
-
-Set this switch to `false` to retain native system-field placement while keeping the existing rewriting behavior. `enable_antigravity: false` bypasses both rewriting and bridging for that provider. `agy` retains its existing rewrite path regardless of the bridge switch. The role labels in the wrapper are ordinary text: relocated instructions no longer occupy the API's system/developer role. Turning on this bridge does not guarantee upstream availability or tool success.
-
-Whole-sentence identity normalization skips fields larger than 256 KiB and candidate sentences larger than 2048 bytes, and limits identity rewrites to 128 per field. Optional audit logs contain request IDs, body hashes, recognized agent families, template hits, fixed residuals, and protected residuals. Prompt text is excluded.
-
-## Agent traces
-
-Download `agent-traces-all` from the Actions run summary for captures, replay, and concrete changes. Starting with `v0.5.4`, a successful release capture is attached to its GitHub Release as `agent-traces-baseline.zip`. Scheduled and manual runs compare against the latest stable tag. Release runs compare against the previous stable tag.
-
-## Build and verify
-
-### Agent release and request tracking
-
-The **Agent traces** GitHub Actions workflow runs daily at 09:23 Malaysia time. A manual run can select one release channel. It tracks stable OpenCode V1 and V2, Pi, Codex, Gemini CLI, and Claude Code. Each installed CLI sends its own requests while working in a synthetic Git project against an isolated loopback endpoint. OpenCode also probes the Code Mode catalog and `execute` round trip. [Workflow](.github/workflows/agent-traces.yml)
-
-Lane artifacts retain the exact release and source, sanitized request bodies, native ABI replay, and review candidates for 30 days. Comparisons use the last successful sample from the same release channel and capture configuration. Review candidates enter the runtime rules through code review. The loopback replies are scripted, so this measures client requests and tool behavior. Model interpretation needs a separate evaluation.
-
-### Plugin build
-
-Build tools are pinned to Go 1.27.3 and Zig 0.17.1. Run `go test -race -count=1 ./...` and `go vet ./...`, then `sh scripts/build.sh` to build a C shared library for Linux amd64, GOAMD64=v1, GNU libc 2.34+. ABI checks use Python 3.12+ standard library. Unit tests cover protocol boundaries, verified identities, independent provider switches, bridge placement, tool/history preservation, constraints, quoting and Unicode. Fuzz tests cover idempotence and quoted unknown identities. `scripts/abi_smoke.py` validates the compiled Linux library with a mock host; it makes no upstream request. `scripts/native_bridge_abi.py` accepts the compiled library and optional corpus/output paths to test both bridge states across both providers and four protocols.
-
-## Install and roll back
-
-Repository, runtime plugin ID, store name, configuration key and asset prefix all use `antigravity-prompt-bridge`. Add this CPA custom store source:
-
 ```text
-https://raw.githubusercontent.com/yurhett/antigravity-prompt-bridge/main/registry.json
+System field: original Antigravity <identity> block
+
+New user message:
+  <USER_REQUEST>
+  Follow the system and developer instructions ...
+  --- message 1 role=system ---
+  Caller system prompt with the identity sentence rewritten; the rest is kept
+  </USER_REQUEST>
+
+Existing user messages, assistant messages and tool results: kept in original order
 ```
 
-Download `antigravity-prompt-bridge_0.5.4_linux_amd64.zip` and `checksums.txt` from [Releases](https://github.com/yurhett/antigravity-prompt-bridge/releases/latest), verify the SHA256, and extract the root-level `antigravity-prompt-bridge.so`.
+- The `role=system/developer` labels inside the wrapper are plain text; the content actually belongs to a user message.
+- Official CLI tool, directory and permission instructions are not imported.
+- Unsupported non-text system blocks stay in place; repeated processing does not wrap twice.
 
-When upgrading from this project's v0.3.0, move the configuration from `plugins.configs.agy-coding-filter` to `plugins.configs.antigravity-prompt-bridge`, preserving all settings. Remove the old configuration key and binary from plugin discovery before enabling the new plugin. The v0.3.0 tag and Release remain available for rollback. Prompt processing and defaults are unchanged by the rename.
+### Agent recognition and rewriting
 
-Back up the old binary outside CPA's plugin discovery directory. Install as `antigravity-prompt-bridge-v0.5.4.so` in the configured plugins directory and save plugin configuration in CPAMC to trigger hot reload. A changed versioned file path is required for replacement. Confirm runtime version and boolean settings above. To bypass only one provider, turn off its switch. To roll back placement only, disable `antigravity_bridge_system_prompt`. To roll back the binary, remove the new versioned file, restore the backed-up binary, and reload configuration.
+`agent_alias` identifies the agent from the original system text and the declared tools. Processing order:
 
-This is an independently maintained adaptation. Source attribution is preserved for jellyfish-p/cpa-plugin-antigravity-coding-filter v0.3.1 (MIT). The stock CLIProxy Antigravity plugin remains independent.
+1. Explicit `custom_mappings`
+2. Declared tool aliases
+3. Agent fragment templates
+4. Whole-word brand cleanup
 
-`agent_alias` defaults to true. Each registered agent can supply identity evidence, prompt fragments, and an execution adapter. It uses the original system text and declared tools. Recognized agents share the same template and whole-word cleanup pipeline across all four protocols. Claude Code drops reviewed vendor help, product announcements, and model-selection guidance. Gemini CLI checks its identity, built-in help declaration, and `invoke_agent` schema while retaining its non-interactive role and help behavior. Pi's `pi agent` can be rewritten while `api`, `pipeline`, and `PiAgent` are preserved. A declared `pi_read` and its references share a reversible alias. Unidentified requests and requests with `agent_alias` disabled use the legacy rewrite settings.
+| Agent | Rules |
+|---|---|
+| Claude Code | Drops reviewed vendor help, model recommendations and product announcements |
+| Gemini CLI | Checks the identity sentence plus the `cli_help` and `invoke_agent` declarations; keeps non-interactive mode and help-tool behavior |
+| Pi | Rewrites `pi agent`, keeps `api`, `pipeline` and `PiAgent`; `pi_read` and its references share one reversible alias |
+| OpenCode | Supports Code Mode, see below |
 
-Tool declarations and parameter schemas use the same text pipeline for `description` strings. Parameter names, enums, defaults, call arguments, results, and message history retain their original values. Agent-specific adapters handle execution contracts such as OpenCode Code Mode.
+Brand cleanup rules:
 
-The OpenCode adapter verifies the formal system catalog and execute/code schema. It handles one- and two-member paths such as `tools.read` and `tools.opencode.worktree_list`, along with static search namespace selectors and catalog results proven by call ID and the AST. The client receives the original executable identifiers. The pinned Goja parser edits source spans and preserves ordinary strings, comments, arguments, result bodies, and user messages. All four protocols share the adapter plan and streaming restoration.
+- Lowercase ambiguous words used as ordinary nouns are skipped, e.g. `move the cursor`, `a goose`, `your AI copilot`, `cascade of errors`.
+- Only attribution phrases (`built/created/developed by X`, `a product of X`, `X's official CLI`, `(formerly X)`, `由 X 开发`) are credited to the Google Deepmind team or removed.
+- Functional references such as `Anthropic API` or `Microsoft content policies` are kept.
+
+### Rule coverage (`brand_guard`)
+
+An adapter can fall behind a client update and miss what it should rewrite. `brand_guard` counts rule hits instead of scanning the prompt, so project notes, paths and commands that the rules keep on purpose never count as gaps. An identified agent must hit:
+
+| Rule | Level | Meaning |
+|---|---|---|
+| `identity:<Agent>` | gap | The self-introduction became the native Antigravity identity, by a template or by identity normalization |
+| `identity-template:<Agent>` | drift | When the agent has recorded identity templates, at least one matched. A miss means the client reworded its identity, which normalization already replaced |
+| `adapter:<adapter>` | gap | When the request declares the adapter's feature, the adapter applied. For example, a declared `execute(code: string)` requires OpenCode Code Mode |
+| `adapter:<adapter>/<rule>` | gap | Rules an adapter declares itself, such as `adapter:opencode-code-mode/group-labels`: every catalog group label is renamed together with its paths |
+
+A gap sends agent features upstream; drift is already handled and only means a template is stale.
+
+| Value | Gap | Drift | Use |
+|---|---|---|---|
+| `off` | Nothing | Nothing | — |
+| `report` | Log at warn level, forward | Log | Observing |
+| `reject` (default) | Return 400 `agent_bridge_coverage_gap` without calling upstream | Log | Everyday use |
+| `strict` | Return 400 | Return 400 | Developing adapters |
+
+A 400 response lists each rule's level, hits and expected count in `error.coverage`. Logs never contain prompt text.
+
+### Unidentified requests (`unidentified`)
+
+When `agent_alias` is on and no agent is identified:
+
+| Value | Behavior |
+|---|---|
+| `reject` (default) | Checks agent fingerprints: a request carrying every fingerprint feature of a known agent returns 400 `agent_bridge_unidentified` without calling upstream; any other request gets only the native Antigravity identity sentence and is otherwise forwarded unchanged |
+| `legacy` | Legacy keyword or heuristic rewrite (see `heuristic_identity`), no identity sentence |
+
+**Fingerprints**: each known agent has two highly distinctive features taken from recorded requests, listed in `internal/rewrite/assets/agent-fingerprints.json`. A feature is a piece of system/developer text or a tool declared with a given parameter; user messages are never checked. Both features mean the request comes from that agent but its identity changed and was not recognized; forwarding it would carry its features, so it is refused with a hint to update the plugin. A single feature is forwarded and logged at warn level. Covered agents: OpenCode, Codex, Claude Code, Gemini CLI and Pi.
+
+**Identity sentence**: placed in front of the first system/developer instruction, unless one already starts with it. Without instructions, a field is created for the Gemini, OpenAI Chat, Responses or Anthropic format; nothing is added when the format is unknown.
+
+With `agent_alias` off, every request takes the legacy path: no fingerprint check and no identity sentence.
+
+### Tool aliases
+
+- `description` strings in tool declarations and parameter schemas go through the same templates and cleanup.
+- Parameter names, enums, defaults, call arguments, ordinary tool results, file contents and message history are unchanged.
+- Aliases are reversible: original names are restored before the client executes a tool.
+- **OpenCode Code Mode**: supports static paths such as `tools.read` and `tools.opencode.worktree_list`; catalog references, `search` and `execute.code` share one mapping. Dynamic paths or calls that cannot be safely restored return an explicit error.
+
+## Upgrade and rollback
+
+### Migrating from the old name (v0.3.0 → v0.3.1+)
+
+1. Move the configuration under `plugins.configs.agy-coding-filter` unchanged to `plugins.configs.antigravity-prompt-bridge`.
+2. Remove the old configuration key and the old shared library from the discovery directory.
+3. Refresh the custom source, install the new plugin, and confirm only one version is active.
+4. Disable the old `antigravity-coding-filter`, which has the same function.
+
+The rename does not change the processing algorithm or defaults. The old v0.3.0 tag and Release remain available for rollback.
+
+### Rollback
+
+- **Bridge placement only**: turn off `antigravity_bridge_system_prompt`.
+- **Bypass one provider**: turn off `enable_agy` or `enable_antigravity`.
+- **Binary**: remove the new versioned file, restore the backup, and save the configuration to trigger hot reload. Do not keep multiple binaries with the same ID in the discovery directory.
+
+## Known limits
+
+- Heuristics are primarily English with limited Chinese support and cannot cover every future template.
+- Prompt fields larger than 256 KiB skip heuristic identity rewriting; candidate sentences are capped at 2,048 bytes, with at most 128 rewrites per field.
+- The plugin does not guarantee upstream quota or availability.
+
+## License
+
+An independently maintained MIT-licensed adaptation. See [NOTICE](NOTICE.md) for original authors, reference projects and test materials, and [LICENSE](LICENSE) for the full license.

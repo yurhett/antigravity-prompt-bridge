@@ -15,7 +15,8 @@ import (
 func TestScopeUsesSelectedCredentialRatherThanModelOrWireFormat(t *testing.T) {
 	p := New(nil)
 	cfg := config.Default()
-	cfg.AgentAlias = false                    // Isolate provider/identity handling.
+	cfg.AgentAlias = false // Isolate provider/identity handling.
+	cfg.Unidentified = config.UnidentifiedLegacy
 	cfg.AntigravityBridgeSystemPrompt = false // This test isolates rewrite/provider selection.
 	p.setConfig(cfg)
 	for _, tt := range []struct {

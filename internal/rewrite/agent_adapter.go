@@ -26,6 +26,10 @@ func adapterPlanError(err error) error {
 // agent; every alias it needs comes from that profile.
 type AgentAdapter interface {
 	ID() string
+	// Declared reports that the request offers the adapter's feature (for
+	// Code Mode, an `execute` tool taking a `code` string). A declared
+	// feature must then Match; brand_guard counts a miss as a coverage gap.
+	Declared(protocol.AgentRequestView) bool
 	Match(protocol.AgentRequestView) bool
 	BuildPlan(protocol.AgentRequestView, *agentProfile) (AgentAdapterPlan, error)
 }
@@ -36,6 +40,11 @@ type AgentAdapterPlan interface {
 	// SystemIdentifiers lists client -> upstream identifiers that the
 	// instructions may reference, rewritten before the prose pass.
 	SystemIdentifiers() [][2]string
+	// SystemEdits rewrites adapter-owned spans of one system text with the
+	// plan's own mapping, before any prose rule runs.
+	SystemEdits(text string) []promptEdit
+	// Coverage reports the plan's own rules once every text was rewritten.
+	Coverage() []CoverageCheck
 }
 
 func buildAgentAdapterPlans(view protocol.AgentRequestView, profile *agentProfile) ([]AgentAdapterPlan, error) {
@@ -43,7 +52,9 @@ func buildAgentAdapterPlans(view protocol.AgentRequestView, profile *agentProfil
 	owners := map[string]string{}
 	for _, registration := range registeredAgentAdapters {
 		adapter := registration.execution
-		if adapter == nil || !adapter.Match(view) {
+		// An adapter belongs to one Agent: structure alone would let another
+		// client's same-named `execute` tool activate it.
+		if adapter == nil || !profile.families[registration.family] || !adapter.Match(view) {
 			continue
 		}
 		p, err := adapter.BuildPlan(view, profile)

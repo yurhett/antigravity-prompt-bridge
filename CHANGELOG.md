@@ -1,5 +1,15 @@
 # 更新记录
 
+## 未发布
+
+- 新增 `brand_guard`（`off` / `report` / `reject` / `strict`，默认 `reject`），统计已识别 Agent 的规则命中次数，不扫描提示词内容。规则分两级：缺口（身份句没被替换、声明了的适配器没生效、分组名没随路径改写）会把 Agent 特征发往上游，默认返回 400 `agent_bridge_coverage_gap` 不发上游；漂移（身份句没对上已记录模板，但已被归一化替换）只记日志，`strict` 下也拒绝。
+- 新增 `unidentified`（`reject` / `legacy`，默认 `reject`），处理开启 `agent_alias` 但识别不出 Agent 的请求。`reject` 按每个已知 Agent 的两个指纹特征判断（`assets/agent-fingerprints.json`，覆盖 OpenCode、Codex、Claude Code、Gemini CLI、Pi）：两个都命中时返回 400 `agent_bridge_unidentified`；否则只补上 Antigravity 标准身份句，其余原样转发。Agent traces 工作流同时检查每次采集是否仍带有对应指纹。
+- **行为变化**：
+  - 已识别请求出现缺口时，默认拒绝，以前是原样转发漏改的部分。
+  - 未识别请求默认不再做旧模式改写，改为指纹判断加身份句；需要旧行为时设 `unidentified: legacy`。关闭 `agent_alias` 时仍走旧模式。
+- 适配器接口新增 `Declared`、`SystemEdits` 和 `Coverage`：适配器自己声明负责的功能和规则，通用层不再包含 OpenCode 专用逻辑。
+- OpenCode Code Mode 改为按结构识别：已识别为 OpenCode、声明了 `execute(code: string)`，且系统提示含 `- tools.*(` 目录条目即启用，不再依赖目录标题、`# Code Mode` 标题或 `execute` 描述文字。修复 OpenCode 把目录标题改为 `## Available tools` 后，分组名改成 `antigravity` 而 `tools.opencode.*` 路径未改写的问题。分组名现在只随路径映射一起改写。Agent traces 的 Code Mode 检测同步改为结构判断。
+
 ## v0.5.4
 
 - 拆分 C ABI 入口、CPA 插件生命周期、配置、协议视图和改写引擎，保留原有插件接口与处理行为。

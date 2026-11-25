@@ -15,18 +15,32 @@ import (
 type openCodeAdapter struct{}
 
 func (openCodeAdapter) ID() string { return "opencode-code-mode" }
+
+// Match decides by structure alone: an `execute` tool that takes a `code`
+// string, and system text that declares static `tools.*` members as list
+// items. Headings and descriptions change between OpenCode releases (the
+// catalog heading went from "## Code Mode tools (call only inside `execute`)"
+// to "## Available tools"), so no wording is a condition.
 func (openCodeAdapter) Match(v protocol.AgentRequestView) bool {
-	hasCatalog := false
-	for _, s := range v.System {
-		if codeModeCatalog(s) != "" {
-			hasCatalog = true
-			break
-		}
-	}
-	if !hasCatalog {
+	if !hasCodeModeExecute(v.Tools) {
 		return false
 	}
-	for _, tool := range v.Tools {
+	for _, s := range v.System {
+		if len(codeModeDeclarations(s)) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (openCodeAdapter) Declared(v protocol.AgentRequestView) bool { return hasCodeModeExecute(v.Tools) }
+
+func isCodeModeExecute(tool protocol.AgentToolDeclaration) bool {
+	return tool.Name == "execute" && hasStringParameter(tool, "code")
+}
+
+func hasCodeModeExecute(tools []protocol.AgentToolDeclaration) bool {
+	for _, tool := range tools {
 		if isCodeModeExecute(tool) {
 			return true
 		}
@@ -34,50 +48,62 @@ func (openCodeAdapter) Match(v protocol.AgentRequestView) bool {
 	return false
 }
 
-func isCodeModeExecute(tool protocol.AgentToolDeclaration) bool {
-	return tool.Name == "execute" && strings.Contains(tool.Description, "confined Code Mode runtime")
+// codeModeDeclarations returns the path span of every catalog entry such as
+// "  - tools.opencode.worktree_list(): Promise<{}>". Entries inside code
+// fences, quotes and examples are documentation, not the catalog.
+func codeModeDeclarations(text string) []textRange {
+	if !strings.Contains(text, "tools") {
+		return nil
+	}
+	var out []textRange
+	var protection *promptProtection
+	for _, m := range codeModeDeclaration.FindAllStringSubmatchIndex(text, -1) {
+		if protection == nil {
+			p := agentPromptProtection(text)
+			protection = &p
+		}
+		if !protection.protectedBlock(m[2], m[3]) {
+			out = append(out, textRange{m[2], m[3]})
+		}
+	}
+	return out
 }
 
-const codeModeCatalogHeading = "## Code Mode tools (call only inside `execute`)"
+// codeModeGroupLabel matches a catalog group such as "- opencode (8 tools)"
+// directly followed by its first "  - tools.opencode.member(" entry.
+var codeModeGroupLabel = regexp.MustCompile(`(?m)^[\t ]*-[\t ]+([A-Za-z_$][A-Za-z0-9_$]*)[\t ]+\(\d+[\t ]+tools?\b[^\n]*\r?\n[\t ]*-[\t ]+tools\.([A-Za-z_$][A-Za-z0-9_$]*)\.`)
 
-func codeModeCatalog(text string) string {
-	if !strings.Contains(text, codeModeCatalogHeading) || !strings.Contains(text, "# Code Mode") {
-		return ""
+// codeModeGroupLabels returns the namespace name span of each group label.
+// The label must use the same name as the Code Mode paths below it, so it
+// is renamed only together with them, never by the prose rules.
+func codeModeGroupLabels(text string) []textRange {
+	if !strings.Contains(text, "tools") {
+		return nil
 	}
-	protection := agentPromptProtection(text)
-	start := -1
-	hasMode := false
-	for _, line := range tracePromptLines(text) {
-		level := promptHeadingLevel(line.text)
-		if level == 0 || protection.protectedBlock(line.start, line.end) {
+	var out []textRange
+	var protection *promptProtection
+	for _, m := range codeModeGroupLabel.FindAllStringSubmatchIndex(text, -1) {
+		if text[m[2]:m[3]] != text[m[4]:m[5]] {
 			continue
 		}
-		if start >= 0 {
-			if level <= 2 {
-				return text[start:line.start]
-			}
-			continue
+		if protection == nil {
+			p := agentPromptProtection(text)
+			protection = &p
 		}
-		title := strings.TrimRight(line.text, " \t")
-		if title == "# Code Mode" {
-			hasMode = true
-		} else if hasMode && title == codeModeCatalogHeading {
-			start = line.end
-		} else if level == 1 {
-			hasMode = false
+		// Like catalog entries, a label inside an example is documentation.
+		if !protection.protectedBlock(m[2], m[3]) {
+			out = append(out, textRange{m[2], m[3]})
 		}
 	}
-	if start >= 0 {
-		return text[start:]
-	}
-	return ""
+	return out
 }
 
 type openCodePlan struct {
-	namespaces        map[string]string // original -> upstream
-	reverseNamespaces map[string]string
-	tools             map[string]string // original namespace + NUL + original member -> upstream member
-	reverseTools      map[string]string
+	labelsFound, labelsRenamed int
+	namespaces                 map[string]string // original -> upstream
+	reverseNamespaces          map[string]string
+	tools                      map[string]string // original namespace + NUL + original member -> upstream member
+	reverseTools               map[string]string
 }
 
 func (p *openCodePlan) Claims() []string {
@@ -102,6 +128,39 @@ func (p *openCodePlan) SystemIdentifiers() [][2]string {
 	sort.Slice(pairs, func(i, j int) bool { return len(pairs[i][0]) > len(pairs[j][0]) })
 	return pairs
 }
+
+const codeModeLabelRule = "adapter:opencode-code-mode/group-labels"
+
+// SystemEdits renames each catalog group label with the alias its paths use.
+// Without a plan the labels stay protected (openCodeSystemKeep), so a label
+// never changes apart from its paths.
+func (p *openCodePlan) SystemEdits(text string) []promptEdit {
+	var edits []promptEdit
+	labels := codeModeGroupLabels(text)
+	for _, label := range labels {
+		if alias, ok := p.namespaces[text[label.start:label.end]]; ok {
+			edits = append(edits, promptEdit{label.start, label.end, alias})
+		}
+	}
+	p.labelsFound += len(labels)
+	p.labelsRenamed += len(edits)
+	return edits
+}
+
+// Coverage requires every group label of the catalog to map with its paths.
+func (p *openCodePlan) Coverage() []CoverageCheck {
+	if p.labelsFound == 0 {
+		return nil
+	}
+	return []CoverageCheck{{Rule: codeModeLabelRule, Expected: p.labelsFound, Hits: p.labelsRenamed, Level: CoverageGap}}
+}
+
+// openCodeSystemKeep protects group labels from the prose rules, which would
+// otherwise rename "opencode (8 tools)" above unchanged tools.opencode.* paths.
+func openCodeSystemKeep(text string, _ promptProtection) ([]promptEdit, []textRange) {
+	return nil, codeModeGroupLabels(text)
+}
+
 func (p *openCodePlan) namespace(s string, reverse bool) (string, bool) {
 	if reverse {
 		v, ok := p.reverseNamespaces[s]
@@ -148,14 +207,7 @@ func staticCodeToolPath(s string) ([]string, error) {
 	return []string{parts[0].name, parts[1].name}, nil
 }
 func (openCodeAdapter) BuildPlan(v protocol.AgentRequestView, profile *agentProfile) (AgentAdapterPlan, error) {
-	valid := false
-	for _, tool := range v.Tools {
-		if isCodeModeExecute(tool) && hasStringParameter(tool, "code") {
-			valid = true
-			break
-		}
-	}
-	if !valid {
+	if !hasCodeModeExecute(v.Tools) {
 		return nil, fmt.Errorf("OpenCode Code Mode execute schema is unsupported")
 	}
 	p := &openCodePlan{namespaces: map[string]string{}, reverseNamespaces: map[string]string{}, tools: map[string]string{}, reverseTools: map[string]string{}}
@@ -196,16 +248,8 @@ func (openCodeAdapter) BuildPlan(v protocol.AgentRequestView, profile *agentProf
 		return nil
 	}
 	for _, text := range v.System {
-		catalog := codeModeCatalog(text)
-		if catalog == "" {
-			continue
-		}
-		protection := agentPromptProtection(catalog)
-		for _, match := range codeModeDeclaration.FindAllStringSubmatchIndex(catalog, -1) {
-			if protection.protectedBlock(match[2], match[3]) {
-				continue
-			}
-			if err := register(catalog[match[2]:match[3]]); err != nil {
+		for _, declaration := range codeModeDeclarations(text) {
+			if err := register(text[declaration.start:declaration.end]); err != nil {
 				return nil, err
 			}
 		}

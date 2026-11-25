@@ -299,7 +299,7 @@ func TestOpenCodeAllProtocolCallsAndStreams(t *testing.T) {
 }
 
 func TestOpenCodeRootOnlyCatalogAndConflicts(t *testing.T) {
-	base := "You are OpenCode.\n# Code Mode\n" + codeModeCatalogHeading + "\n"
+	base := "You are OpenCode.\n# Code Mode\n## Code Mode tools (call only inside `execute`)\n"
 	tool := recordedTraceTool("opencode-v2-code-mode")
 	root := projectTraceRequest("chat", []string{base + "- tools.opencode_open(): Promise<string>\n"}, []protocol.AgentToolDeclaration{tool})
 	raw, _ := json.Marshal(root)
@@ -328,5 +328,80 @@ func TestOpenCodeRootOnlyCatalogAndConflicts(t *testing.T) {
 	_, state, err = aliasAgentRequest(body)
 	if err != nil || state != nil {
 		t.Fatalf("catalog in example activated Code Mode: %v %v", state, err)
+	}
+}
+
+// liveCodeModeRequest mirrors the structure of the OpenCode requests that
+// leaked tools.opencode.* behind "## Available tools": the catalog heading is
+// the only part that varies, and the execute description no longer matters.
+func liveCodeModeRequest(heading string, tools ...any) []byte {
+	system := traceFragment("opencode-v2", "identity") + "\n# Code Mode\n\nThe tools listed below only work inside `execute`.\n\n" + heading +
+		"- opencode (2 tools) // Tools for managing OpenCode itself.\n" +
+		"  - tools.opencode.worktree_list(): Promise<{\n  worktrees: Array<string>,\n}> // List worktrees.\n" +
+		"  - tools.opencode.session_move({\n  directory: string,\n}): Promise<{}> // Move a session.\n\n" +
+		"# Rules\n\nCall tools.opencode.session_move only when asked.\n"
+	if len(tools) == 0 {
+		execute := codeModeTool()
+		execute["description"] = "Run JavaScript to compose tool calls."
+		tools = []any{execute}
+	}
+	raw, _ := json.Marshal(map[string]any{"system": system, "tools": []any{map[string]any{"functionDeclarations": tools}}})
+	return raw
+}
+
+func TestOpenCodeCodeModeIgnoresCatalogHeading(t *testing.T) {
+	var outputs []string
+	headings := []string{"## Code Mode tools (call only inside `execute`)\n\n", "## Available tools\n\n", "### Anything else\n\n", ""}
+	for _, heading := range headings {
+		body, state, err := aliasAgentRequest(liveCodeModeRequest(heading))
+		if err != nil || state == nil || len(state.adapters) != 1 {
+			t.Fatalf("heading %q: adapter not applied: %v", heading, err)
+		}
+		got, _ := protocol.DecodeJSON(body)
+		system := got.(map[string]any)["system"].(string)
+		if strings.Contains(system, "opencode") || !strings.Contains(system, "- antigravity (2 tools)") ||
+			!strings.Contains(system, "tools.antigravity.worktree_list()") || !strings.Contains(system, "Call tools.antigravity.session_move only") {
+			t.Fatalf("heading %q: inconsistent rewrite:\n%s", heading, system)
+		}
+		outputs = append(outputs, strings.Replace(system, heading, "", 1))
+
+		call := protocol.AgentToolCall{Object: map[string]any{"name": "execute", "args": map[string]any{
+			"code": `return await tools.antigravity.session_move({directory:"/tmp"});`,
+		}}, ArgumentKey: "args"}
+		if err := state.adapters[0].RestoreCall(call); err != nil || call.Object["args"].(map[string]any)["code"] != `return await tools.opencode.session_move({directory:"/tmp"});` {
+			t.Fatalf("heading %q: call not restored: %v %v", heading, call.Object, err)
+		}
+	}
+	for i := range outputs {
+		if outputs[i] != outputs[0] {
+			t.Fatalf("heading changed the rewrite:\n%s\n---\n%s", outputs[0], outputs[i])
+		}
+	}
+}
+
+func TestOpenCodeGroupLabelNeverHalfRewritten(t *testing.T) {
+	// No `execute(code)` tool: no plan, so the label must keep the name its
+	// paths still use instead of following the prose rules.
+	body, _, err := aliasAgentRequest(liveCodeModeRequest("## Available tools\n\n", map[string]any{"name": "read"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := protocol.DecodeJSON(body)
+	system := got.(map[string]any)["system"].(string)
+	if !strings.Contains(system, "- opencode (2 tools)") || !strings.Contains(system, "tools.opencode.worktree_list") ||
+		!strings.Contains(system, "Tools for managing Antigravity itself") {
+		t.Fatalf("label and paths diverged:\n%s", system)
+	}
+}
+
+func TestOpenCodeAdapterRequiresOpenCodeAgent(t *testing.T) {
+	system := "You are Codex, a coding agent.\n- tools.opencode.worktree_list(): Promise<{}>\n"
+	raw, _ := json.Marshal(map[string]any{"system": system, "tools": []any{map[string]any{"functionDeclarations": []any{codeModeTool()}}}})
+	_, state, err := aliasAgentRequest(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != nil && len(state.adapters) != 0 {
+		t.Fatal("OpenCode adapter ran for another Agent")
 	}
 }

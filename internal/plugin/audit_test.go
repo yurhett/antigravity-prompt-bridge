@@ -31,6 +31,7 @@ func TestAgentPromptRuntimeFallbackAuditAndStatelessRewrite(t *testing.T) {
 		return response
 	}
 	cfg := config.Default()
+	cfg.Unidentified = config.UnidentifiedLegacy
 	cfg.Audit = true
 	cfg.HeuristicIdentity = true
 	cfg.CustomMappings = []config.Mapping{{Match: "local_marker", Replacement: "project notes"}}

@@ -1,0 +1,100 @@
+[
+  {
+    "family": "OpenCode",
+    "features": [
+      {
+        "id": "opencode/skill-tool-hint",
+        "kind": "text",
+        "text": "Use the skill tool to load a skill when a task matches its description.",
+        "source": "agent-traces-baseline v0.5.4: opencode-v1 1.19.6, opencode-v2 2.3.2",
+        "why": "Skill section wording shared by both OpenCode prompt generations; no other recorded agent uses it."
+      },
+      {
+        "id": "opencode/env-workspace-root",
+        "kind": "text",
+        "text": "Workspace root folder:",
+        "source": "agent-traces-baseline v0.5.4: opencode-v1 1.19.6, opencode-v2 2.3.2",
+        "why": "Line of the OpenCode <env> block, a different section from the skill hint; no other recorded agent uses it."
+      }
+    ]
+  },
+  {
+    "family": "Codex",
+    "features": [
+      {
+        "id": "codex/agents-md-spec",
+        "kind": "text",
+        "text": "# AGENTS.md spec",
+        "source": "agent-traces-baseline v0.5.4: codex 0.171.0",
+        "why": "Codex's own heading for the AGENTS.md rules; other agents read AGENTS.md without this section."
+      },
+      {
+        "id": "codex/exec-command-yield",
+        "kind": "tool",
+        "tool": "exec_command",
+        "parameter": "yield_time_ms",
+        "source": "agent-traces-baseline v0.5.4: codex 0.171.0",
+        "why": "Codex's unified exec tool with its yield parameter; no other recorded agent declares it."
+      }
+    ]
+  },
+  {
+    "family": "Gemini CLI",
+    "features": [
+      {
+        "id": "gemini/core-mandates",
+        "kind": "text",
+        "text": "# Core Mandates",
+        "source": "agent-traces-baseline v0.5.4: gemini 0.70.0",
+        "why": "Gemini CLI prompt section heading; not part of the identity or cli_help lines used for recognition."
+      },
+      {
+        "id": "gemini/update-topic",
+        "kind": "tool",
+        "tool": "update_topic",
+        "parameter": "strategic_intent",
+        "source": "agent-traces-baseline v0.5.4: gemini 0.70.0",
+        "why": "Gemini CLI topic tool; independent of the invoke_agent declaration used for recognition."
+      }
+    ]
+  },
+  {
+    "family": "Claude Code",
+    "features": [
+      {
+        "id": "claude/using-your-tools",
+        "kind": "text",
+        "text": "# Using your tools",
+        "source": "agent-traces-baseline v0.5.4: claude 2.1.330",
+        "why": "Claude Code prompt section heading; no other recorded agent uses it."
+      },
+      {
+        "id": "claude/agent-subagent-type",
+        "kind": "tool",
+        "tool": "Agent",
+        "parameter": "subagent_type",
+        "source": "agent-traces-baseline v0.5.4: claude 2.1.330",
+        "why": "Claude Code subagent tool; the capitalized name with subagent_type is not declared by other recorded agents."
+      }
+    ]
+  },
+  {
+    "family": "Pi",
+    "features": [
+      {
+        "id": "pi/package-path",
+        "kind": "text",
+        "text": "@earendil-works/pi-coding-agent",
+        "source": "agent-traces-baseline v0.5.4: pi 1.6.0",
+        "why": "Pi's npm package in its documentation paths; Pi tools use generic names, so both features are text."
+      },
+      {
+        "id": "pi/env-variables",
+        "kind": "text",
+        "text": "PI_* environment variables",
+        "source": "agent-traces-baseline v0.5.4: pi 1.6.0",
+        "why": "Pi's own environment variable hint, in a different line from the documentation paths."
+      }
+    ]
+  }
+]

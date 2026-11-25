@@ -61,7 +61,7 @@ func BenchmarkAdapterPipeline(b *testing.B) {
 				b.SetBytes(int64(len(body)))
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					if _, err := Request(body, cfg); err != nil {
+					if _, err := Request(body, cfg, "gemini"); err != nil {
 						b.Fatal(err)
 					}
 				}

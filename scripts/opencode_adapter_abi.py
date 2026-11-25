@@ -55,7 +55,7 @@ def main():
    assert ORIGINAL in codes(payloads),output
    p.call('request.complete',{'RequestID':fmt});reports.append({'protocol':fmt,'system_names_aliased':True,'nonstream':True,'fragmented_stream':True,'ordinary_string_preserved':True})
   # Keyword identity rewriting is independent of the alias switch; disable it to measure only the alias and adapter.
-  p.configure('agent_alias: false\nuse_default_keywords: false\nantigravity_bridge_system_prompt: false\n',heuristic=False)
+  p.configure('agent_alias: false\nunidentified: legacy\nuse_default_keywords: false\nantigravity_bridge_system_prompt: false\n',heuristic=False)
   assert p.transform(request)==request
  finally:p.close()
  print(json.dumps({'passed':True,'protocols':reports,'unified_switch':True}))

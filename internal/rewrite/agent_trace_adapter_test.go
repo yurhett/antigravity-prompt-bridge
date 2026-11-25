@@ -165,6 +165,9 @@ func TestAgentTraceAcrossProtocols(t *testing.T) {
 					if err != nil || !reflect.DeepEqual(result.Families, []string{sample.family}) || result.State == nil {
 						t.Fatalf("family/state: %v %v", result.Families, err)
 					}
+					if len(result.Coverage) != 0 {
+						t.Fatalf("recorded trace misses coverage rules: %v", result.Coverage)
+					}
 					got, err := protocol.DecodeJSON(result.Body)
 					if err != nil {
 						t.Fatal(err)

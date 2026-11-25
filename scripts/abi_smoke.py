@@ -24,7 +24,7 @@ def main():
     try:
         for agy, native in [(True, True), (True, False), (False, True), (False, False), (None, None)]:
             extra = "" if agy is None else f"enable_agy: {str(agy).lower()}\nenable_antigravity: {str(native).lower()}\n"
-            registration = plugin.configure(extra + "agent_alias: false\nantigravity_bridge_system_prompt: false\n")
+            registration = plugin.configure(extra + "agent_alias: false\nunidentified: legacy\nantigravity_bridge_system_prompt: false\n")
             assert registration["metadata"]["Version"] == version
             assert registration["metadata"]["GitHubRepository"] == "https://github.com/yurhett/antigravity-prompt-bridge"
             for provider in ["agy", "antigravity", "openai"]:
@@ -33,15 +33,30 @@ def main():
                 assert plugin.transform(body) == (expected if wanted else body), (provider, agy, native)
                 count += 1
         plugin.provider = "antigravity"
-        plugin.configure("agent_alias: false\n")  # Omitted switch must enable bridging.
+        plugin.configure("agent_alias: false\nunidentified: legacy\n")  # Omitted switch must enable bridging.
         bridged = plugin.transform(body)
         assert bridged["messages"][0]["content"] == NATIVE_SYSTEM
         assert bridged["messages"][2:] == body["messages"][2:]
         assert bridged["tools"] == body["tools"]
         assert plugin.transform(bridged) == bridged
+
+        plugin.provider = "agy"
+        plugin.configure()
+        custom = {
+            "messages": [{"role": "system", "content": "Read ~/.codex/config.toml."},
+                         {"role": "user", "content": "Keep Codex in this message."}],
+            "tools": [{"name": "codex_read", "description": "Read from the Codex workspace."}],
+        }
+        # No Agent identified and no Agent fingerprint: only the native identity
+        # sentence is added; everything else is forwarded as sent.
+        rewritten = plugin.transform(custom)
+        assert rewritten["messages"][0]["content"] == NATIVE_IDENTITY + "\n\nRead ~/.codex/config.toml."
+        assert rewritten["tools"] == custom["tools"]
+        assert rewritten["messages"][1] == custom["messages"][1]
     finally:
         plugin.close()
-    print(json.dumps({"passed": True, "version": version, "provider_switch_cases": count, "bridge_defaults_on": True}))
+    print(json.dumps({"passed": True, "version": version, "provider_switch_cases": count,
+                      "bridge_defaults_on": True, "unidentified_identity_default": True}))
 
 
 if __name__ == "__main__":

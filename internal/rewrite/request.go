@@ -9,18 +9,38 @@ import (
 	"github.com/yurhett/antigravity-prompt-bridge/internal/protocol"
 )
 
-// Request applies the recognized Agent rules or the legacy fallback.
-func Request(body []byte, cfg config.Config) (RequestResult, error) {
-	var result RequestResult
-	if cfg.AgentAlias {
-		var err error
-		result, err = rewriteAgentRequest(body, cfg)
-		if err != nil || len(result.Families) > 0 {
-			return result, err
+// aliasToolSlots builds the reverse maps for renamed native tools and namespaces.
+func aliasToolSlots(slots []protocol.ToolNameSlot, aliasName func(string) string) (functions, namespaces map[string]string, renamed bool, err error) {
+	functions, namespaces = make(map[string]string), make(map[string]string)
+	for _, slot := range slots {
+		ns := slot.Namespace
+		if slot.NamespaceOnly {
+			ns = slot.Name()
 		}
+		if ns == "" {
+			continue
+		}
+		alias := aliasName(ns)
+		if old, ok := namespaces[alias]; ok && old != ns {
+			return nil, nil, false, fmt.Errorf("native namespace alias %q is ambiguous", alias)
+		}
+		namespaces[alias] = ns
+		renamed = renamed || alias != ns
 	}
-	result.Body, _ = rewriteRequestBodyWithConfig(body, cfg)
-	return result, nil
+	for _, slot := range slots {
+		if slot.NamespaceOnly {
+			continue
+		}
+		name := slot.Name()
+		alias := aliasName(name)
+		key := aliasToolKey(aliasName(slot.Namespace), alias)
+		if old, ok := functions[key]; ok && old != name {
+			return nil, nil, false, fmt.Errorf("tool name alias %q is ambiguous", alias)
+		}
+		functions[key] = name
+		renamed = renamed || alias != name
+	}
+	return functions, namespaces, renamed, nil
 }
 
 type RequestResult struct {
@@ -28,8 +48,17 @@ type RequestResult struct {
 	State    *AliasState
 	Families []string
 	Stats    PromptStats
+	// Coverage lists rules the identified Agent's request should have hit
+	// but did not; brand_guard decides what they cost.
+	Coverage []CoverageCheck
+	// Reject, when set, means the request must not reach upstream.
+	Reject *Rejection
+	// Fingerprints lists partial Agent fingerprints of an unidentified request
+	// that was forwarded; the plugin logs them.
+	Fingerprints []FingerprintMatch
 }
 
+// rewriteAgentRequest runs the identified Agent's rules and counts coverage.
 func rewriteAgentRequest(body []byte, cfg config.Config) (RequestResult, error) {
 	var result RequestResult
 	root, err := protocol.DecodeJSON(body)
@@ -46,12 +75,17 @@ func rewriteAgentRequest(body []byte, cfg config.Config) (RequestResult, error) 
 		result.Families = append(result.Families, family)
 	}
 	sort.Strings(result.Families)
+	coverage := newCoverageCounter()
+	expectCoverage(coverage, view, profile)
 	plans, err := buildAgentAdapterPlans(view, profile)
 	if err != nil {
 		return result, err
 	}
-	functions, namespaces := make(map[string]string), make(map[string]string)
-	requiresRestore := len(plans) > 0
+	for _, registration := range registeredAgentAdapters {
+		if adapter := registration.execution; adapter != nil && profile.families[registration.family] && adapter.Match(view) {
+			coverage.hit(adapterRule(adapter.ID()), 1)
+		}
+	}
 	changed := false
 	names := make(map[string]string)
 	aliasName := func(name string) string {
@@ -62,39 +96,11 @@ func rewriteAgentRequest(body []byte, cfg config.Config) (RequestResult, error) 
 		}
 		return alias
 	}
-	for _, slot := range slots {
-		ns := slot.Namespace
-		if slot.NamespaceOnly {
-			ns = slot.Name()
-		}
-		if ns == "" {
-			continue
-		}
-		alias := aliasName(ns)
-		if old, ok := namespaces[alias]; ok && old != ns {
-			return result, fmt.Errorf("native namespace alias %q is ambiguous", alias)
-		}
-		namespaces[alias] = ns
-		if alias != ns {
-			requiresRestore = true
-		}
+	functions, namespaces, renamed, err := aliasToolSlots(slots, aliasName)
+	if err != nil {
+		return result, err
 	}
-	for _, slot := range slots {
-		if slot.NamespaceOnly {
-			continue
-		}
-		name := slot.Name()
-		alias := aliasName(name)
-		ns := aliasName(slot.Namespace)
-		key := aliasToolKey(ns, alias)
-		if old, ok := functions[key]; ok && old != name {
-			return result, fmt.Errorf("tool name alias %q is ambiguous", alias)
-		}
-		functions[key] = name
-		if alias != name {
-			requiresRestore = true
-		}
-	}
+	requiresRestore := len(plans) > 0 || renamed
 	aliases := declaredToolReferences(declarations, aliasName)
 	for _, plan := range plans {
 		for _, pair := range plan.SystemIdentifiers() {
@@ -118,7 +124,7 @@ func rewriteAgentRequest(body []byte, cfg config.Config) (RequestResult, error) 
 		changed = changed || did
 	}
 	rewriter := agentPromptRewriter{
-		profile: profile, aliases: aliases, custom: config.NormalizeMappings(cfg.CustomMappings),
+		profile: profile, aliases: aliases, custom: config.NormalizeMappings(cfg.CustomMappings), coverage: coverage, plans: plans,
 	}
 	_, systemChanged := protocol.TransformPromptFields(root, func(text string) (string, bool) {
 		return rewriter.rewrite(text, true)
@@ -130,6 +136,12 @@ func rewriteAgentRequest(body []byte, cfg config.Config) (RequestResult, error) 
 		}) || changed
 	}
 	result.Stats = rewriter.stats
+	for _, plan := range plans {
+		for _, check := range plan.Coverage() {
+			coverage.add(check)
+		}
+	}
+	result.Coverage = coverage.misses()
 	if !changed {
 		return result, nil
 	}

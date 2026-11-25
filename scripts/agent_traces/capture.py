@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from protocols import (
-    ANSWER, RESULT_TOKEN, code_mode, declarations, has_fixture_result, response, sse, system_fields, trace_tool,
+    ANSWER, CATALOG, RESULT_TOKEN, code_mode, declarations, has_fixture_result, response, sse, system_fields, trace_tool,
 )
 
 # Bump when prompts, launch options, or the fixture's contents change.
@@ -287,8 +287,9 @@ def collect(lane, binary, scenario, root, timeout, launcher, debug):
                     print("fixture round trip:", scrub(str(outputs)[:1500], root), file=sys.stderr)
                 if server.errors and scenario == "code-mode":
                     for _, text in system_fields(server.requests[0]):
-                        start = text.find("## Code Mode tools")
-                        if start != -1:
+                        entry = CATALOG.search(text)
+                        if entry:
+                            start = text.rfind("\n#", 0, entry.start()) + 1
                             print("Code Mode catalog:", scrub(text[start:start + 7500], root), file=sys.stderr)
         if server.errors:
             raise ValueError("collector rejected request: " + server.errors[0])

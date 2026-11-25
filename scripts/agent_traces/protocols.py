@@ -74,25 +74,23 @@ def has_fixture_result(protocol, body):
 
 CATALOG = re.compile(r"(?m)^[ \t]*-[ \t]+(tools(?:\.[A-Za-z_$][\w$]*){1,2})[ \t]*\(")
 READ_PATH_KEY = re.compile(r"\b(filePath|file_path|path|filename|fileName|file)[ \t]*:[ \t]*string\b")
-CATALOG_HEADER = "## Code Mode tools (call only inside `execute`)"
+FENCE = re.compile(r"(?ms)^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[ \t]*$")
 
 
+# Code Mode is recognized by structure, as in the Go adapter: an `execute`
+# tool plus catalog entries such as "  - tools.opencode.read(". Catalog
+# headings change between OpenCode releases and are not a condition.
 def code_mode(body):
     return any(tool["name"] == "execute" for _, _, tool in declarations(body)) and any(
-        CATALOG_HEADER in text for _, text in system_fields(body)
+        True for _ in catalog_tools(body)
     )
 
 
 def catalog_tools(body):
     for _, text in system_fields(body):
-        _, header, catalog = text.partition(CATALOG_HEADER)
-        if not header:
-            continue
-        end = re.search(r"(?m)^#{1,2} ", catalog)
-        if end:
-            catalog = catalog[:end.start()]
-        for match in CATALOG.finditer(catalog):
-            signature = catalog[match.end():].partition("):")[0]
+        text = FENCE.sub("", text)
+        for match in CATALOG.finditer(text):
+            signature = text[match.end():].partition("):")[0]
             yield match[1], signature
 
 

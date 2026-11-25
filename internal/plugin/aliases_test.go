@@ -143,7 +143,7 @@ func providerResponse(provider string) json.RawMessage {
 }
 
 func rewriteAliasesForTest(body []byte) ([]byte, *rewrite.AliasState, error) {
-	result, err := rewrite.Request(body, config.Default())
+	result, err := rewrite.Request(body, config.Default(), "gemini")
 	return result.Body, result.State, err
 }
 

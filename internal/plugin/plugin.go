@@ -93,10 +93,12 @@ func configFields() []pluginapi.ConfigField {
 		{Name: "enable_agy", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Apply this filter to selected agy credentials. Default true."},
 		{Name: "enable_antigravity", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Apply this filter to selected native antigravity credentials independently. Default true."},
 		{Name: "antigravity_bridge_system_prompt", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Native antigravity only: move rewritten system/developer prompts into a USER_REQUEST user message, keeping the native identity as system. Does not affect agy. Default true."},
-		{Name: "agent_alias", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Identify the agent from its system/developer self-declaration. Apply prompt templates, whole-word brand cleanup and reversible tool aliases. Unidentified requests use the legacy rewrite settings. Default true."},
+		{Name: "agent_alias", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Identify the agent from its system/developer self-declaration. Apply prompt templates, whole-word brand cleanup and reversible tool aliases. The unidentified setting handles requests without a match. Default true."},
 		{Name: "use_default_keywords", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Use the legacy keyword preset or use its names as clues for heuristic identity normalization. Default true."},
 		{Name: "custom_mappings", Type: pluginapi.ConfigFieldTypeObject, Description: "Case-insensitive custom mappings; override built-in mappings."},
 		{Name: "heuristic_identity", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Conservatively normalize identity and harness declarations to the native Antigravity identity; preserve quoted/code/project content. Default false."},
+		{Name: "brand_guard", Type: pluginapi.ConfigFieldTypeEnum, EnumValues: []string{"off", "report", "reject", "strict"}, Description: "Rule coverage of identified agents. A gap (identity left in place, declared adapter not applied) leaks agent features; drift (identity normalized but no recorded template matched) means a template is stale. off ignores misses; report logs them; reject (default) returns 400 agent_bridge_coverage_gap for gaps and logs drift; strict also refuses drift, for adapter development."},
+		{Name: "unidentified", Type: pluginapi.ConfigFieldTypeEnum, EnumValues: []string{"reject", "legacy"}, Description: "Requests no agent is identified for, while agent_alias is on. reject (default): a request carrying both fingerprint features of a known agent returns 400 agent_bridge_unidentified without calling upstream; any other request is forwarded with only the native Antigravity identity sentence added. legacy: apply the legacy rewrite settings. With agent_alias off every request uses the legacy rewrite."},
 		{Name: "audit", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Log request ID, body SHA256 hashes, identified agent families and rewrite counts. Prompt contents are excluded."},
 	}
 }
@@ -140,8 +142,20 @@ func (p *Plugin) handleRequestAfter(request []byte) []byte {
 		p.aliases.remove(req.RequestID)
 		return mustEnvelope(pluginapi.RequestInterceptResponse{})
 	}
-	agent, err := rewrite.Request(req.Body, cfg)
-	if cfg.AgentAlias {
+	agent, err := rewrite.Request(req.Body, cfg, req.SourceFormat)
+	if err == nil && agent.Reject != nil {
+		p.aliases.remove(req.RequestID)
+		_, _ = p.hostCall("host.log", map[string]any{"level": "warn", "message": config.PluginName + ": request refused: " + agent.Reject.Message, "fields": map[string]any{
+			"request_id": req.RequestID, "agent_families": agent.Families, "code": agent.Reject.Code, "coverage": agent.Reject.Coverage,
+			"fingerprints": agent.Reject.Fingerprints, "brand_guard": string(cfg.BrandGuard), "unidentified": string(cfg.Unidentified),
+		}})
+		payload, _ := json.Marshal(map[string]any{"error": map[string]any{
+			"type": "invalid_request_error", "code": agent.Reject.Code, "message": config.PluginName + ": " + agent.Reject.Message,
+			"coverage": agent.Reject.Coverage, "fingerprints": agent.Reject.Fingerprints,
+		}})
+		return mustEnvelope(pluginapi.RequestInterceptResponse{Terminate: true, StatusCode: 400, ResponseBody: payload})
+	}
+	if err != nil || agent.State != nil {
 		state := agent.State
 		if err == nil && state != nil && req.Stream && !rewrite.SupportsStreamFormat(req.SourceFormat) {
 			err = fmt.Errorf("unsupported agent alias stream format")
@@ -160,6 +174,18 @@ func (p *Plugin) handleRequestAfter(request []byte) []byte {
 			payload, _ := json.Marshal(map[string]any{"error": map[string]any{"type": "invalid_request_error", "code": code, "message": err.Error()}})
 			return mustEnvelope(pluginapi.RequestInterceptResponse{Terminate: true, StatusCode: 400, ResponseBody: payload})
 		}
+	}
+	if len(agent.Coverage) > 0 && cfg.BrandGuard != config.GuardOff {
+		_, _ = p.hostCall("host.log", map[string]any{"level": "warn", "message": config.PluginName + ": " + rewrite.CoverageSummary(agent.Coverage), "fields": map[string]any{
+			"request_id": req.RequestID, "agent_families": agent.Families, "coverage": agent.Coverage, "brand_guard": string(cfg.BrandGuard),
+		}})
+	}
+	if len(agent.Fingerprints) > 0 {
+		// One feature of a known Agent: forwarded, but worth checking whether
+		// that Agent changed or the fingerprint is not distinctive enough.
+		_, _ = p.hostCall("host.log", map[string]any{"level": "warn", "message": config.PluginName + ": unidentified request carries a partial agent fingerprint", "fields": map[string]any{
+			"request_id": req.RequestID, "fingerprints": agent.Fingerprints,
+		}})
 	}
 	body := agent.Body
 	rewritten := body != nil

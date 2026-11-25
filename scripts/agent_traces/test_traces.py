@@ -15,13 +15,15 @@ from zipfile import ZipFile
 import releases
 import workflow_support
 from capture import CREDENTIAL, Collector, LANES, publish
-from protocols import CATALOG_HEADER, RESULT_TOKEN, code_mode, has_fixture_result, response, sse, trace_tool
-from report import compare, report, rule_candidates, streamed_tool, validate
+from protocols import RESULT_TOKEN, code_mode, has_fixture_result, response, sse, trace_tool
+from report import compare, fingerprint_failures, report, rule_candidates, streamed_tool, validate
 
 
 def pi_trace(version, identity, tool_name):
     protocol, model = LANES["pi"]
-    system = {"role": "system", "content": identity + "\nCall `" + tool_name + "` to read the fixture."}
+    # The two Pi fingerprint features (internal/rewrite/assets/agent-fingerprints.json).
+    fingerprint = "\nDocs: /opt/client/node_modules/@earendil-works/pi-coding-agent/README.md\nYou can inspect PI_* environment variables."
+    system = {"role": "system", "content": identity + "\nCall `" + tool_name + "` to read the fixture." + fingerprint}
     user = {"role": "user", "content": "Read the trace fixture."}
     body = {
         "messages": [system, user],
@@ -95,6 +97,19 @@ class CaptureTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "capture failures"):
             validate(trace)
 
+    def test_capture_must_keep_its_agent_fingerprint(self):
+        trace = pi_trace("1.0.0", "You are Pi.", "pi_read")
+        self.assertEqual(fingerprint_failures(trace), [])
+        body = trace["scenarios"][0]["requests"][0]["body"]
+        body["messages"][0]["content"] = body["messages"][0]["content"].replace("PI_* environment variables", "environment variables")
+        failures = fingerprint_failures(trace)
+        self.assertEqual([(f["scenario"], f["stage"]) for f in failures], [("text", "fingerprint")])
+        self.assertIn("pi/env-variables", failures[0]["reason"])
+        body["messages"][0]["content"] += "\n# AGENTS.md spec"
+        body["tools"].append({"type": "function", "function": {"name": "exec_command", "parameters": {
+            "type": "object", "properties": {"yield_time_ms": {"type": "number"}}}}})
+        self.assertIn("carries the Codex fingerprint", " ".join(f["reason"] for f in fingerprint_failures(trace)))
+
     def test_empty_capture_cannot_become_a_baseline(self):
         trace = pi_trace("1.0.0", "You are Pi.", "pi_read")
         trace["scenarios"][0]["requests"] = []
@@ -103,7 +118,7 @@ class CaptureTests(unittest.TestCase):
 
     def test_code_mode_supports_observed_multiline_single_member(self):
         body = {
-            "messages": [{"role": "system", "content": f"# Code Mode\n{CATALOG_HEADER}\n"
+            "messages": [{"role": "system", "content": "# Code Mode\n## Available tools\n"
                           "- read (1 tool)\n  - tools.read({\n  /** File to read */\n  path: string,\n}): Promise<string>"}],
             "tools": [{"type": "function", "function": {"name": "execute"}}],
         }
@@ -194,7 +209,7 @@ def tagged_trace(lane, version, with_code_mode=False):
         if with_code_mode:
             for item in entry["requests"]:
                 changed = item["body"]
-                changed["messages"][0]["content"] += "\n" + CATALOG_HEADER
+                changed["messages"][0]["content"] += "\n## Available tools\n- tools.read({ path: string }): Promise<string>\n"
                 changed["tools"].append({"name": "execute"})
             entry["requests"] = [publish(item["body"], "/fixture") for item in entry["requests"]]
         else:

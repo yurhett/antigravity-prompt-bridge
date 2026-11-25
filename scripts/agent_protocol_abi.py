@@ -64,10 +64,9 @@ def main():
             assert "codex_probe" in text and "codex_key" in text and "antigravity_probe" not in text and "agent_alias_restore_failed" not in text, text
             plugin.call("request.complete", {"RequestID": rid})
             rows.append({"protocol": source, "nonstream": True, "fragmented_stream": True, "user_unchanged": True})
-        plugin.configure("agent_alias: false\nantigravity_bridge_system_prompt: false\n", heuristic=False)
         # Identity processing is independent: disable keywords to measure only
         # the alias switch, with a non-identity system sentence.
-        plugin.configure("agent_alias: false\nuse_default_keywords: false\nantigravity_bridge_system_prompt: false\n", heuristic=False)
+        plugin.configure("agent_alias: false\nunidentified: legacy\nuse_default_keywords: false\nantigravity_bridge_system_prompt: false\n", heuristic=False)
         body = {"system": "Codex integration", "tools": [{"name": "codex_probe"}]}
         assert plugin.transform(body) == body
     finally:

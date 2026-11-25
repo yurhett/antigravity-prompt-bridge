@@ -33,6 +33,46 @@ SUBSCHEMA_KEYS = {
     "unevaluatedProperties", "not", "if", "then", "else",
 }
 SCHEMA_KEYS = {"parameters", "input_schema", "parametersJsonSchema", "parameters_json_schema"}
+FAMILIES = {
+    "opencode-v1": "OpenCode", "opencode-v2": "OpenCode", "codex": "Codex", "pi": "Pi",
+    "gemini": "Gemini CLI", "claude": "Claude Code",
+}
+FINGERPRINTS = Path(__file__).resolve().parents[2] / "internal/rewrite/assets/agent-fingerprints.json"
+
+
+def fingerprint_feature(feature, body):
+    """Mirror internal/rewrite/fingerprint.go: instructions text or a tool with a parameter."""
+    if feature["kind"] == "text":
+        return any(feature["text"] in text for _, text in system_fields(body))
+    for _, _, tool in declarations(body):
+        if tool["name"] != feature["tool"]:
+            continue
+        if not feature.get("parameter"):
+            return True
+        schema = next((tool[key] for key in SCHEMA_KEYS if isinstance(tool.get(key), dict)), {})
+        if feature["parameter"] in schema.get("properties", {}):
+            return True
+    return False
+
+
+def fingerprint_failures(trace):
+    """A lane must carry every feature of its own Agent and no other Agent's full fingerprint."""
+    family = FAMILIES[trace["release"]["lane"]]
+    failures = []
+    for scenario in trace["scenarios"]:
+        for i, request in enumerate(scenario["requests"]):
+            body = request["body"]
+            for fingerprint in json.loads(FINGERPRINTS.read_text()):
+                hits = [f["id"] for f in fingerprint["features"] if fingerprint_feature(f, body)]
+                if fingerprint["family"] == family and len(hits) != len(fingerprint["features"]):
+                    missing = [f["id"] for f in fingerprint["features"] if f["id"] not in hits]
+                    reason = f"{family} fingerprint feature missing: {', '.join(missing)}"
+                elif fingerprint["family"] != family and len(hits) == len(fingerprint["features"]):
+                    reason = f"carries the {fingerprint['family']} fingerprint"
+                else:
+                    continue
+                failures.append({"scenario": scenario["scenario"], "round": i + 1, "stage": "fingerprint", "reason": reason})
+    return failures
 
 
 def tool_contract(tool):
@@ -451,7 +491,7 @@ def report(trace, baseline, library):
         "baseline_version": baseline["release"]["version"] if baseline else None,
         "replays": replays,
         "diff": compare(trace, baseline),
-        "failures": failures,
+        "failures": failures + fingerprint_failures(trace),
     }
 
 

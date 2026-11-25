@@ -95,6 +95,7 @@ var registeredAgentAdapters = func() []agentRegistration {
 
 	openCode := families["OpenCode"]
 	openCode.execution = openCodeAdapter{}
+	openCode.systemEdits = openCodeSystemKeep
 	addTraceTemplate(openCode.family, "opencode-v1", "identity_prefix", nativeAntigravityIdentity+" Please", false)
 	addTraceTemplate(openCode.family, "opencode-v2", "identity", nativeAntigravityIdentity, false)
 

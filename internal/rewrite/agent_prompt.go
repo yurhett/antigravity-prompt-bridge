@@ -188,10 +188,12 @@ type PromptStats struct {
 }
 
 type agentPromptRewriter struct {
-	profile *agentProfile
-	aliases map[string]string
-	custom  []config.Mapping
-	stats   PromptStats
+	profile  *agentProfile
+	aliases  map[string]string
+	plans    []AgentAdapterPlan
+	coverage *coverageCounter
+	custom   []config.Mapping
+	stats    PromptStats
 }
 
 func (r *agentPromptRewriter) rewrite(text string, system bool) (string, bool) {
@@ -200,6 +202,11 @@ func (r *agentPromptRewriter) rewrite(text string, system bool) (string, bool) {
 		next = applyIdentityMappings(next, r.custom, func(value string) []textRange {
 			return agentPromptProtection(value).all()
 		})
+	}
+	if system {
+		for _, plan := range r.plans {
+			next = applyPromptEdits(next, plan.SystemEdits(next))
+		}
 	}
 	protection, removals := r.promptPolicy(next, system)
 	if withAliases := rewriteToolReferences(next, r.aliases, protection); withAliases != next {
@@ -232,7 +239,13 @@ func (r *agentPromptRewriter) rewrite(text string, system bool) (string, bool) {
 				return false
 			}
 			profile := r.profile.catalog.identify([]string{candidate})
-			return profile != nil && r.profile.includes(profile)
+			if profile == nil || !r.profile.includes(profile) {
+				return false
+			}
+			for family := range profile.families {
+				r.coverage.hit(identityRule(family), 1)
+			}
+			return true
 		})
 		if normalized != next {
 			oldCount := len(residual)
@@ -308,7 +321,12 @@ func (r *agentPromptRewriter) applyTemplates(text string, protected []textRange,
 						}
 					}
 				}
+				before := len(edits)
 				edits = addPromptEdit(edits, start, end, template.Replacement)
+				if system && len(edits) > before && isIdentityTemplate(template) {
+					r.coverage.hit(identityRule(registration.family), 1)
+					r.coverage.hit(identityTemplateRule(registration.family), 1)
+				}
 			}
 		}
 	}
